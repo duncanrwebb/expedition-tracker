@@ -300,6 +300,11 @@ function flightStatus(f, prevArr){
 // throughout the day.
 function travelStatusText(dayNum){
   const now = new Date();
+  // This itinerary's Emirates legs have run 1–2.5h late on multiple days, and this template has
+  // no live flight-status API (that stays out of the shareable version to protect the personal
+  // repo's quota — see marcus-trip for the live-aware version). Without live confirmation, don't
+  // assume a flight has actually departed the instant the clock reaches the scheduled time.
+  const BUFFER_MS = 45*60*1000;
   if (dayNum === 1 || dayNum === 2 || dayNum === 3 || dayNum === 4){ // extended for the missed EK314 connection — real arrival is now Day 4, not Day 2
     // Days 1 and 2 are one continuous journey (coach → Gatwick → Dubai → Phnom Penh) that
     // happens to straddle the UK-calendar day boundary. Handling them together avoids a
@@ -313,23 +318,23 @@ function travelStatusText(dayNum){
     const depSin2 = new Date(FLIGHTS[2].dep);
     const arrPP = new Date(FLIGHTS[2].arr);
     if (now < depCoach) return `still in the UK — coach to Gatwick, departs ${depCoach.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/London"})}`;
-    if (now < depLondon) return `at Gatwick — checking in, boards EK16 to Dubai at ${depLondon.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/London"})}`;
+    if (now < depLondon.getTime()+BUFFER_MS) return `at Gatwick — checking in, boards EK16 to Dubai at ${depLondon.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/London"})}`;
     if (now < arrDubai) return "in the air ✈️ — EK16 heading to Dubai";
-    if (now < depSin1) return "landed in Dubai — transiting the airport, boarding EK314 soon";
+    if (now < depSin1.getTime()+BUFFER_MS) return "landed in Dubai — transiting the airport, boarding EK314 soon";
     if (now < arrSin) return "in the air ✈️ — EK314 heading to Singapore";
-    if (now < depSin2) return "long layover in Singapore — boarding EK348 to Phnom Penh soon";
+    if (now < depSin2.getTime()+BUFFER_MS) return "long layover in Singapore — boarding EK348 to Phnom Penh soon";
     if (now < arrPP) return "in the air ✈️ — EK348, final leg to Phnom Penh";
     return "landed in Phnom Penh — settling in";
   }
   if (dayNum === 18){
     const dep = new Date(FLIGHTS[3].dep);
-    if (now < dep) return "free time in Ho Chi Minh City, then heading to the airport";
+    if (now < dep.getTime()+BUFFER_MS) return "free time in Ho Chi Minh City, then heading to the airport";
     return "in the air ✈️ — EK393 heading home, via Dubai";
   }
   if (dayNum === 19){
     const arrDubai = new Date(FLIGHTS[3].arr), depDubai = new Date(FLIGHTS[4].dep), arrHome = new Date(FLIGHTS[4].arr);
     if (now < arrDubai) return "in the air ✈️ — EK393 heading to Dubai";
-    if (now < depDubai) return "transiting Dubai airport, boarding EK15 soon";
+    if (now < depDubai.getTime()+BUFFER_MS) return "transiting Dubai airport, boarding EK15 soon";
     if (now < arrHome) return "in the air ✈️ — final leg home on EK15";
     return "HOME! 🎉";
   }
