@@ -1,34 +1,3070 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Expedition Log has moved</title>
-<meta http-equiv="refresh" content="4; url=https://cambodia.duncanrwebb.com/">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Expedition Log</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <style>
-  :root { --bg:#f5f1e8; --text:#1d2b22; --muted:#5b665e; --accent:#24432f; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#141a16; --text:#e6ebe7; --muted:#9aa59d; --accent:#8fc39f; } }
-  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg); color:var(--text);
-         font:17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; padding:24px; box-sizing:border-box; }
-  main { max-width:420px; text-align:center; }
-  h1 { font-size:26px; margin:0 0 10px; }
-  p { margin:0 0 14px; color:var(--muted); }
-  a.go { display:inline-block; margin-top:6px; background:var(--accent); color:var(--bg); text-decoration:none; font-weight:600; padding:12px 20px; border-radius:10px; }
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  /* Every colour below comes from the trip config's `theme` block, injected as
+     custom properties at startup. Nothing here is trip-specific — swap the
+     config and the whole app re-skins. */
+  :root {
+    --fs: 1;   /* viewer's text size, set from the Aa control; see applyTextSize() */
+    --primary:#1B4332; --primary-deep:#123324; --accent:#C9A66B;
+    --bg:#F6F1E7; --surface:#FBF8F1; --text:#1F2421; --text-body:#3A3F3B;
+    --text-muted:#6B6455; --border:#E4DCC8; --border-strong:#C9BFA6;
+    --past:#B8AE99; --success:#3F7248; --warning:#8A6D3B; --alert:#A63D40;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); padding-bottom:40px; }
+  a { color:var(--alert); }
+
+  .hero { background:linear-gradient(180deg,var(--primary) 0%,var(--primary-deep) 100%); color:var(--bg); padding:28px 20px 24px; border-radius:24px; margin-top:2px; }
+  .eyebrow { font-family:'JetBrains Mono',monospace; font-size:calc(14px * var(--fs)); letter-spacing:1.5px; text-transform:uppercase; color:var(--accent); }
+  h1.title { font-family:'Fraunces',serif; font-size:calc(34px * var(--fs)); font-weight:700; margin:6px 0 4px; line-height:1.1; }
+  .subtitle { font-size:calc(17px * var(--fs)); opacity:.85; margin:0 0 16px; }
+  .progress-label { font-family:'JetBrains Mono',monospace; font-size:calc(16px * var(--fs)); margin-bottom:6px; }
+  .progress-track { height:8px; background:rgba(255,255,255,.15); border-radius:8px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--accent); border-radius:8px; transition:width .4s ease; }
+  main { padding:22px 16px 0; max-width:640px; margin:0 auto; }
+
+  .tabbar-wrap { position:sticky; top:0; z-index:20; display:flex; align-items:center; background:var(--bg); border-bottom:1.5px solid var(--border); }
+  .tabbar-wrap .tabbar { flex:1; min-width:0; border-bottom:0; }
+  /* Deliberately not scaled with --fs: it has to stay findable by exactly the
+     people whose text is currently too small to read. */
+  .textsize-btn { flex-shrink:0; margin-right:10px; min-width:44px; min-height:44px; border-radius:22px;
+    border:1.5px solid var(--border-strong); background:#fff; color:var(--text-body); cursor:pointer;
+    font-family:'Fraunces',Georgia,serif; font-size:18px; font-weight:700; }
+  .textsize-btn[aria-expanded="true"] { background:var(--primary); border-color:var(--primary); color:var(--bg); }
+  .textsize-panel { position:absolute; right:10px; top:calc(100% + 6px); background:#fff; border:1.5px solid var(--border-strong);
+    border-radius:14px; box-shadow:0 6px 20px rgba(0,0,0,.16); padding:12px; width:min(280px, calc(100vw - 20px)); }
+  .textsize-panel h2 { font-size:17px; margin:0 0 8px; font-family:'Inter',sans-serif; color:var(--text); }
+  .textsize-panel .ts-opts { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  /* Each option shows the size it sets — the choice is visible, not described. */
+  .textsize-panel button { min-height:52px; border-radius:10px; border:1.5px solid var(--border-strong); background:#fff;
+    cursor:pointer; font-family:'Fraunces',Georgia,serif; font-weight:700; color:var(--text-body); line-height:1; }
+  .textsize-panel button[aria-pressed="true"] { background:var(--primary); border-color:var(--primary); color:var(--bg); }
+  .textsize-panel p { font-size:15px; margin:10px 0 0; color:var(--text-muted); line-height:1.45; }
+  .tabbar { position:relative; display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; background:var(--bg); border-bottom:1.5px solid var(--border); padding:10px 12px; scrollbar-width:none; }
+  .tabbar::-webkit-scrollbar { display:none; }
+  .tab-btn { flex-shrink:0; background:#fff; border:1.5px solid var(--border-strong); border-radius:20px; padding:9px 16px; font-size:calc(14px * var(--fs)); font-weight:600; color:var(--text-body); cursor:pointer; min-height:44px; font-family:'Inter',sans-serif; white-space:nowrap; }
+  .tab-btn[aria-selected="true"] { background:var(--primary); border-color:var(--primary); color:var(--bg); }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+
+  h3.section { font-family:'Fraunces',serif; font-size:calc(22px * var(--fs)); margin:26px 0 12px; }
+  #mapWrapper { position:relative; }
+  /* left:50%+transform centers the map even when it's been resized wider than its
+     container — margin:auto gets clamped to zero by browsers once a box is wider
+     than its parent, which was the actual bug the first time this was tried. */
+  #map { height:380px; border-radius:16px; border:1.5px solid var(--border); position:relative; left:50%; transform:translateX(-50%); }
+  .map-resize-handle { display:none; position:absolute; right:6px; bottom:6px; width:30px; height:30px; border-radius:8px; background:var(--primary); color:#fff; align-items:center; justify-content:center; font-size:16px; cursor:nwse-resize; z-index:500; user-select:none; box-shadow:0 2px 6px rgba(0,0,0,.3); opacity:.85; }
+  @media (pointer: fine) { .map-resize-handle { display:flex; } }
+  .map-resize-handle:hover { opacity:1; }
+  .map-controls { background:var(--surface); border:1.5px solid var(--border); border-top:none; border-bottom-left-radius:16px; border-bottom-right-radius:16px; padding:12px 14px; margin-top:-1px; }
+  .map-controls .chip-row { display:flex; flex-wrap:wrap; gap:8px; }
+  .map-controls .chip { display:flex; align-items:center; gap:6px; font-size:calc(16px * var(--fs)); padding:11px 14px; border-radius:22px; border:1.5px solid var(--border-strong); background:#fff; cursor:pointer; user-select:none; min-height:44px; }
+  .map-controls .chip.off { opacity:.45; text-decoration:line-through; }
+  .map-controls .chip input { position:absolute; width:1px; height:1px; opacity:0; clip:rect(0 0 0 0); }
+  .map-controls .hint { font-size:calc(14px * var(--fs)); color:var(--text-muted); margin:0 0 8px; }
+  .leaflet-popup-content { font-family:'Inter',sans-serif; font-size:calc(16px * var(--fs)); max-width:200px; }
+  .leaflet-popup-content b { font-family:'Fraunces',serif; font-size:calc(17px * var(--fs)); }
+
+  .day-row { display:flex; gap:14px; margin-bottom:12px; }
+  .past-days-toggle { display:block; width:100%; text-align:left; background:var(--surface); border:1.5px dashed var(--border-strong); border-radius:12px; padding:12px 16px; font-size:calc(14px * var(--fs)); font-weight:600; color:var(--text-muted); cursor:pointer; margin-bottom:12px; font-family:'Inter',sans-serif; min-height:44px; }
+  .dot { flex-shrink:0; width:34px; height:34px; border-radius:50%; border:2px solid var(--primary); background:#fff; font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .dot.today { background:var(--primary); color:#fff; }
+  .dot.past { background:var(--past); border-color:var(--past); }
+  .day-card { flex:1; background:var(--surface); border:1.5px solid var(--border-strong); border-radius:14px; padding:12px 14px; cursor:pointer; }
+  .day-card.today { border-color:var(--primary); }
+  .day-head { display:flex; justify-content:space-between; font-size:calc(14px * var(--fs)); }
+  .day-date { font-family:'JetBrains Mono',monospace; color:var(--text-muted); }
+  .phase-tag { font-weight:600; }
+  .day-loc { font-size:calc(18px * var(--fs)); font-weight:600; margin-top:4px; }
+  .day-body { margin-top:10px; display:none; }
+  .day-body.open { display:block; }
+  .day-photo { width:100%; height:130px; object-fit:cover; border-radius:10px; margin-bottom:8px; }
+  .day-summary { font-size:calc(16px * var(--fs)); line-height:1.5; margin:0 0 8px; color:var(--text-body); }
+
+  .current-card { background:#fff; color:var(--text); border-radius:18px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.25); margin-top:14px; }
+  .current-card img { width:100%; height:150px; object-fit:cover; display:block; }
+  .current-card .inner { padding:16px; }
+  .phase-pill { display:inline-block; color:#fff; font-size:calc(14px * var(--fs)); font-weight:600; padding:3px 10px; border-radius:20px; margin-bottom:8px; }
+  .current-loc { font-family:'Fraunces',serif; font-size:calc(24px * var(--fs)); margin:0 0 6px; }
+  .countdown-row { display:flex; gap:10px; margin:14px 0 0; }
+  .countdown-box { flex:1; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); border-radius:12px; padding:10px 12px; text-align:center; }
+  .countdown-num { font-family:'Fraunces',serif; font-size:calc(25px * var(--fs)); font-weight:700; color:var(--accent); line-height:1.1; white-space:nowrap; }
+  .countdown-lbl { font-size:calc(14px * var(--fs)); opacity:.8; margin-top:4px; }
+  .there-now { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); border-radius:12px; padding:10px 14px; margin-top:10px; font-size:calc(16px * var(--fs)); line-height:1.5; }
+  .there-now .tn-head { font-family:'JetBrains Mono',monospace; font-size:calc(14px * var(--fs)); letter-spacing:1px; text-transform:uppercase; color:var(--accent); margin-bottom:3px; }
+  .fun-fact { background:#FFF9EC; border:1.5px dashed var(--accent); border-radius:10px; padding:8px 12px; font-size:calc(15px * var(--fs)); line-height:1.5; margin-top:8px; color:var(--text-body); }
+  .fun-fact b { color:var(--warning); }
+  .key-dates { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+  .key-date { display:flex; align-items:flex-start; gap:10px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:9px 12px; font-size:calc(15px * var(--fs)); }
+  .key-date.done { opacity:.45; text-decoration:line-through; }
+  .key-date .kd-when { font-family:'JetBrains Mono',monospace; font-size:calc(13px * var(--fs)); color:var(--accent); flex:0 0 88px; line-height:1.4; padding-top:1px; }
+  .key-date .kd-label { flex:1; line-height:1.4; }
+  /* At large text sizes a fixed 88px date column holds about four characters a
+     line, so "Mon 20 Jul, ~10:40 UK time" stacked into four ragged rows. Put the
+     date above the event instead, where it gets the full width. */
+  .ts-large .key-date { flex-direction:column; gap:3px; }
+  .ts-large .key-date .kd-when { flex:none; }
+  .right-now { background:#EFF5EF; border-left:4px solid var(--success); border-radius:8px; padding:8px 12px; font-size:calc(16px * var(--fs)); line-height:1.5; margin:8px 0; }
+  .quiet { background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.22); border-left:4px solid var(--accent);
+    border-radius:10px; padding:10px 14px; margin-top:10px; font-size:calc(15px * var(--fs)); line-height:1.5; }
+  .quiet-head { font-family:'JetBrains Mono',monospace; font-size:calc(13px * var(--fs)); letter-spacing:.6px; text-transform:uppercase;
+    color:var(--accent); margin-bottom:4px; }
+  .quiet-next { margin-top:5px; font-size:calc(14px * var(--fs)); opacity:.95; }
+  .updated-note { font-size:calc(13px * var(--fs)); color:var(--text-muted); margin-top:10px; }
+  .updated-note.stale { color:var(--warning); font-weight:600; }
+
+  .trek-progress { background:var(--surface); border:1.5px solid var(--border); border-radius:16px; padding:16px 18px; }
+  .trek-progress h4 { font-family:'Fraunces',serif; font-size:calc(19px * var(--fs)); margin:0 0 4px; }
+  .trek-sub { font-size:calc(14px * var(--fs)); color:var(--text-muted); margin:0 0 10px; }
+  .trek-track { height:14px; background:var(--border); border-radius:10px; overflow:hidden; position:relative; }
+  .trek-fill { height:100%; background:linear-gradient(90deg,var(--success),var(--primary)); border-radius:10px; transition:width .5s ease; }
+  .trek-boots { position:absolute; top:-4px; font-size:calc(18px * var(--fs)); transform:translateX(-50%); transition:left .5s ease; }
+  .trek-stats { display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:calc(14px * var(--fs)); color:var(--text-muted); margin-top:6px; }
+  .trek-note { font-size:calc(12.5px * var(--fs)); color:var(--text-muted); line-height:1.5; margin:10px 0 0; padding-top:8px; border-top:1px dashed var(--border-strong); }
+
+  .info-card { background:var(--surface); border:1.5px solid var(--border-strong); border-radius:14px; padding:14px 16px; margin-bottom:12px; }
+  .info-card h4 { font-family:'Fraunces',serif; font-size:calc(16px * var(--fs)); margin:0 0 6px; display:flex; align-items:center; gap:6px; }
+  .info-card p, .info-card .placeholder { font-size:calc(15px * var(--fs)); line-height:1.6; margin:0 0 8px; color:var(--text-body); white-space:pre-wrap; }
+  .info-card .placeholder { color:var(--text-muted); font-style:italic; }
+  .info-card textarea, .info-card input[type=url], .info-card input[type=text] { width:100%; border-radius:8px; border:1.5px solid var(--border-strong); padding:8px 10px; font-size:calc(16px * var(--fs)); font-family:'Inter',sans-serif; resize:vertical; margin-bottom:8px; }
+  .gal-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:10px; }
+  .gal-th, .gal-cell { padding:0; border:0; background:var(--border-strong); border-radius:8px; overflow:hidden; aspect-ratio:1; cursor:pointer; }
+  .gal-th img, .gal-cell img { width:100%; height:100%; object-fit:cover; display:block; }
+  .gal-over { position:fixed; inset:0; z-index:9500; background:var(--bg); display:flex; flex-direction:column; }
+  .gal-bar { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; padding-top:max(10px, env(safe-area-inset-top)); border-bottom:1px solid var(--border-strong); }
+  .gal-grid { flex:1; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:4px; padding:4px; align-content:start; -webkit-overflow-scrolling:touch; }
+  .gal-x { background:none; border:0; font-size:22px; line-height:1; padding:8px 12px; color:inherit; cursor:pointer; min-width:44px; min-height:44px; }
+  .gal-big { position:absolute; inset:0; background:#000; display:flex; align-items:center; justify-content:center; }
+  .gal-big[hidden] { display:none; }
+  .gal-big img { max-width:100%; max-height:100%; object-fit:contain; }
+  .gal-big .gal-x { position:absolute; top:max(6px, env(safe-area-inset-top)); right:6px; color:#fff; z-index:2; }
+  .gal-nav { position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,.35); color:#fff; border:0; font-size:34px; line-height:1; width:44px; height:64px; cursor:pointer; z-index:2; }
+  .gal-nav.prev { left:0; border-radius:0 8px 8px 0; } .gal-nav.next { right:0; border-radius:8px 0 0 8px; }
+  .gal-cap { position:absolute; left:0; right:0; bottom:0; padding:10px 14px; padding-bottom:max(10px, env(safe-area-inset-bottom)); display:flex; justify-content:space-between; gap:12px; color:#fff; background:linear-gradient(transparent, rgba(0,0,0,.6)); font-size:14px; }
+  .gal-cap a { color:#fff; font-weight:600; }
+  .map-photo { width:40px; height:40px; border-radius:8px; border:2px solid #fff; box-shadow:0 1px 5px rgba(0,0,0,.45); background:#ccc center/cover; position:relative; cursor:pointer; }
+  .map-photo::after { content:""; position:absolute; left:50%; bottom:-10px; margin-left:-6px; border:6px solid transparent; border-top-color:#fff; border-bottom:0; height:4px; }
+  .map-photo span { position:absolute; top:-8px; right:-8px; background:var(--primary); color:#fff; border-radius:10px; padding:0 6px; font:600 11px/18px Inter,sans-serif; border:1.5px solid #fff; }
+  .card-btn { background:var(--primary); color:var(--bg); border:none; border-radius:8px; padding:9px 14px; font-weight:600; font-size:calc(14px * var(--fs)); cursor:pointer; min-height:40px; }
+  .card-btn.secondary { background:none; color:var(--primary); border:1.5px solid var(--primary); }
+  .card-btn.link { display:inline-block; background:var(--primary); color:var(--bg); text-decoration:none; border-radius:8px; padding:9px 14px; font-weight:600; font-size:calc(14px * var(--fs)); text-align:center; }
+  .card-btn.link.secondary { background:none; color:var(--primary); border:1.5px solid var(--primary); }
+  .portal-btn-group { display:flex; flex-direction:column; gap:8px; }
+  .portal-btn { display:block; width:100%; }
+
+  .flight-row { border-top:1px solid var(--border); padding:12px 0; font-size:calc(14px * var(--fs)); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .flight-row:first-of-type { border-top:none; padding-top:0; }
+  .flight-info { flex:1; min-width:180px; }
+  .flight-main { font-size:calc(15px * var(--fs)); }
+  .flight-times { color:var(--text-muted); font-family:'JetBrains Mono',monospace; font-size:calc(12.5px * var(--fs)); margin-top:3px; }
+  .flight-status { font-weight:600; margin-top:3px; font-size:calc(13px * var(--fs)); }
+  .flight-row.live .flight-status { color:var(--success); }
+  .flight-row.done .flight-status { color:var(--warning); }
+  .flight-row.landed .flight-status { color:var(--success); }
+  /* Next up: the one thing on now or next, for the people travelling. */
+  .next-up { background:var(--surface); border:1.5px solid var(--primary); border-radius:14px; padding:14px 16px; margin:0 0 14px; }
+  .next-up .quiet-head { color:var(--primary); }
+  .next-title { font-family:'Fraunces',serif; font-size:calc(20px * var(--fs)); line-height:1.25; color:var(--text); margin:2px 0; }
+  .next-when { font-weight:600; color:var(--text-body); font-size:calc(15px * var(--fs)); }
+  .next-where { color:var(--text-muted); font-size:calc(14px * var(--fs)); margin-top:2px; }
+  .next-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .next-btn, .cal-add { font:600 calc(13px * var(--fs))/1.2 inherit; text-decoration:none; color:var(--primary);
+    border:1.5px solid var(--border-strong); background:var(--surface); border-radius:16px; padding:5px 10px; cursor:pointer; white-space:nowrap; }
+  .next-btn:focus-visible, .cal-add:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+  /* Cancelled or diverted — the one status a parent must not miss. */
+  .flight-row.alert .flight-status { color:var(--alert); }
+  /* Segmented control for the "whose local time?" toggle */
+  .seg { display:inline-flex; border:1.5px solid var(--border-strong); border-radius:20px; overflow:hidden; background:#fff; }
+  .seg button { border:none; background:none; font-family:'Inter',sans-serif; font-size:calc(12.5px * var(--fs)); font-weight:600;
+    color:var(--text-muted); padding:7px 12px; cursor:pointer; min-height:34px; white-space:nowrap; }
+  .seg button[aria-pressed="true"] { background:var(--primary); color:var(--bg); }
+  .seg-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:calc(13px * var(--fs)); color:var(--text-muted); }
+
+  .flight-track-btn { background:#fff; color:var(--primary); border:1.5px solid var(--primary); white-space:nowrap; flex-shrink:0; }
+  .flight-track-btn-live { background:var(--success); color:var(--bg); border-color:var(--success); animation:flightPulse 1.8s ease-in-out infinite; }
+  @keyframes flightPulse { 0%,100%{ box-shadow:0 0 0 0 rgba(63,114,72,.5); } 50%{ box-shadow:0 0 0 7px rgba(63,114,72,0); } }
+
+  /* Accommodation / car hire — only rendered when the config has them. */
+  .stay { border-top:1px solid var(--border); padding:11px 0; }
+  .stay:first-of-type { border-top:none; padding-top:0; }
+  /* "Been" is the strongest thing a list entry can say once a trip is over —
+     it separates what was actually done from what was only ever considered.
+     A chip on its own was too easy to lose in a list of twenty, so the whole
+     row carries it. Declared BEFORE .current so that on the rare entry which
+     is both, where-you-are-now still wins. */
+  .stay.been { background:#EDF3ED; border-left:4px solid var(--success); border-radius:8px; padding-left:10px; margin:4px 0; }
+  .stay.been .stay-name { color:var(--success); }
+  .stay.current { background:#EFF5EF; border-left:4px solid var(--success); border-radius:8px; padding-left:10px; margin:4px 0; }
+  .stay-when { font-family:'JetBrains Mono',monospace; font-size:calc(12.5px * var(--fs)); color:var(--text-muted); }
+  .stay-name { font-size:calc(15px * var(--fs)); font-weight:600; margin-top:2px; }
+  .stay-note { font-size:calc(13.5px * var(--fs)); color:var(--text-muted); line-height:1.5; margin-top:3px; }
+
+  .notes-section { background:var(--surface); border:1.5px solid var(--border); border-radius:16px; padding:18px; }
+  .notes-hint { font-size:calc(16px * var(--fs)); color:var(--text-muted); line-height:1.5; }
+  .note-input-row { display:flex; gap:8px; margin:8px 0 14px; }
+  textarea#noteInput { flex:1; border-radius:10px; border:1.5px solid var(--border); padding:10px; font-size:calc(16px * var(--fs)); font-family:'Inter',sans-serif; resize:vertical; }
+  button#saveNote { background:var(--primary); color:var(--bg); border:none; border-radius:10px; padding:0 20px; font-weight:600; font-size:calc(17px * var(--fs)); cursor:pointer; min-height:44px; }
+  .note-item { background:#fff; border-radius:10px; padding:8px 12px; border:1px solid var(--border); margin-bottom:8px; }
+  .note-item-row { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+  .note-text { flex:1; white-space:pre-wrap; }
+  .note-delete { flex-shrink:0; background:none; border:none; color:var(--warning); font-size:calc(15px * var(--fs)); cursor:pointer; padding:6px 8px; border-radius:6px; min-height:32px; }
+  .note-date { font-size:calc(14px * var(--fs)); color:var(--text-muted); margin-top:4px; font-family:'JetBrains Mono',monospace; }
+  .notes-actions { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+  .ghost-btn { background:#fff; border:1.5px solid var(--border-strong); border-radius:10px; padding:9px 14px; font-size:calc(14px * var(--fs)); font-weight:600; color:var(--primary); cursor:pointer; min-height:44px; }
+  .prompt-chip { display:inline-block; background:#fff; border:1.5px solid var(--border-strong); border-radius:22px; padding:11px 14px; font-size:calc(16px * var(--fs)); color:var(--text-body); cursor:pointer; margin-bottom:8px; min-height:44px; }
+
+  footer { text-align:center; font-size:calc(15px * var(--fs)); color:var(--text-muted); margin-top:26px; line-height:1.5; }
+  #printHeading { display:none; }
+
+  a:focus-visible, button:focus-visible, textarea:focus-visible, .day-card:focus-visible, .dot:focus-visible { outline:3px solid var(--primary); outline-offset:2px; border-radius:6px; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
+  @media print {
+    .tabbar-wrap, #infoCards, #map, #mapResizeHandle, .map-controls, #trekProgress, h3.section, #timeline, .note-input-row, #promptChip, .notes-actions, footer { display:none !important; }
+    .tab-panel { display:none !important; }
+    .tab-panel[data-tab="messages"] { display:block !important; }
+    .notes-section { border:none; background:none; padding:0; }
+    #printHeading { display:block !important; font-family:'Fraunces',serif; font-size:calc(22px * var(--fs)); margin-bottom:14px; }
+    .note-item { break-inside:avoid; border:1px solid #ccc; }
+    .note-delete { display:none !important; }
+  }
 </style>
 </head>
 <body>
+
+<div class="tabbar-wrap">
+<nav class="tabbar" id="tabbar" role="tablist" aria-label="App sections"></nav>
+<!-- Outside the tablist on purpose: inside it, a screen reader announces this
+     as a sixth tab. -->
+<button type="button" class="textsize-btn" id="textSizeBtn" aria-haspopup="true"
+        aria-expanded="false" aria-controls="textSizePanel" aria-label="Text size">Aa</button>
+<div class="textsize-panel" id="textSizePanel" role="group" aria-label="Text size" hidden></div>
+</div>
+
 <main>
-  <h1>The Expedition Log has moved</h1>
-  <p>The Cambodia &amp; Vietnam expedition is over. Its app is kept as a keepsake at a new address, with a password: ask whoever sent you the link.</p>
-  <a class="go" href="https://cambodia.duncanrwebb.com/">Go to the keepsake</a>
-  <p style="margin-top:18px;font-size:14px">If you added the old one to your home screen, you can delete that icon and add the new address instead.</p>
+  <section class="tab-panel" data-tab="overview" role="tabpanel" aria-labelledby="tabbtn-overview">
+    <div class="hero">
+      <span class="eyebrow" id="eyebrow"></span>
+      <h1 class="title" id="pageTitle"></h1>
+      <p class="subtitle" id="subtitle"></p>
+      <div class="progress-label" id="progressLabel"></div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <div id="countdownRow" class="countdown-row"></div>
+      <div id="thereNow" class="there-now"></div>
+      <div id="keyDates" class="key-dates"></div>
+    </div>
+    <div id="currentCard"></div>
+    <div class="info-card" id="themeStory" style="margin-top:14px;"></div>
+  </section>
+
+  <section class="tab-panel" data-tab="info" role="tabpanel" aria-labelledby="tabbtn-info">
+    <div id="infoCards"></div>
+  </section>
+
+  <!-- No trip text in here. The advisory line lives in the config as
+       `eatingNote` and renders inside the card, so it travels with the trip
+       rather than being baked into the engine every trip shares. -->
+  <section class="tab-panel" data-tab="bookings" role="tabpanel" aria-labelledby="tabbtn-bookings">
+    <div id="bookingsCards"></div>
+  </section>
+
+  <section class="tab-panel" data-tab="roadstops" role="tabpanel" aria-labelledby="tabbtn-roadstops">
+    <div id="roadStopCards"></div>
+  </section>
+
+  <section class="tab-panel" data-tab="eating" role="tabpanel" aria-labelledby="tabbtn-eating">
+    <div id="eatingCards"></div>
+  </section>
+
+  <section class="tab-panel" data-tab="considering" role="tabpanel" aria-labelledby="tabbtn-considering">
+    <div id="consideringCards"></div>
+  </section>
+
+  <section class="tab-panel" data-tab="map" role="tabpanel" aria-labelledby="tabbtn-map">
+    <h3 class="section" style="margin-top:0;">Route map</h3>
+    <div id="mapWrapper">
+      <div id="map" role="application" aria-label="Interactive route map. Numbered markers show stops in travel order. The same information is in the itinerary tab."></div>
+      <div id="mapResizeHandle" class="map-resize-handle" title="Drag to resize the map" aria-hidden="true">⤡</div>
+    </div>
+    <div id="mapControls" class="map-controls"></div>
+    <div id="offlineMapCard"></div>
+  </section>
+
+  <section class="tab-panel" data-tab="trek" role="tabpanel" aria-labelledby="tabbtn-trek">
+    <div id="trekProgress"></div>
+  </section>
+
+  <section class="tab-panel" data-tab="itinerary" role="tabpanel" aria-labelledby="tabbtn-itinerary">
+    <h3 class="section" style="margin-top:0;">Full itinerary</h3>
+    <div id="timeline"></div>
+  </section>
+
+  <section class="tab-panel" data-tab="messages" role="tabpanel" aria-labelledby="tabbtn-messages">
+    <div class="notes-section">
+      <div id="printHeading"></div>
+      <h3 class="section" id="messagesHeading" style="margin-top:0;"></h3>
+      <p class="notes-hint" id="notesHint"></p>
+      <div id="promptChip"></div>
+      <div class="note-input-row">
+        <textarea id="noteInput" rows="2" aria-label="Add a message" placeholder=""></textarea>
+        <button id="saveNote">Save</button>
+      </div>
+      <div id="notesList"></div>
+      <div class="notes-actions">
+        <button type="button" id="exportNotes" class="ghost-btn">⬇ Export as text</button>
+        <button type="button" id="printNotes" class="ghost-btn">🖨 Print keepsake</button>
+      </div>
+    </div>
+  </section>
+
+  <footer id="footer"></footer>
 </main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="icon-art.js"></script>
+<script src="trip-calendar.js"></script>
 <script>
-  // Phones that had the old app installed keep a service worker for it; the new
-  // sw.js here removes itself, and this makes sure it is asked to.
-  if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.update().catch(() => {}))).catch(() => {});
-  setTimeout(() => { location.replace("https://cambodia.duncanrwebb.com/"); }, 4000);
+// Loads the trip config before the engine runs.
+//   ?preview=1     — render the Trip Builder's unsaved draft, so an organiser can
+//                    see exactly what they're about to publish before publishing it.
+//   ?trip=texas    — load trips/texas/trip-config.js. How you work from the repo,
+//                    where every trip has its own folder. (?config= is the old
+//                    name for the same thing and still works.)
+//   (neither)      — trip-config.js beside this file. That is the live case: a
+//                    published site holds the engine plus ONE trip folder's
+//                    contents, copied in by deploy/publish-trip.sh, and nothing
+//                    else — so there is no other trip it could load.
+// TRIP_DIR is the folder the config came from. Files the config names by a
+// relative path (the costs file, a ticket PDF) live in that same folder.
+// document.write is deliberate for the file case: it's the one way to pull in a
+// script synchronously with no build step and no async bootstrapping, and it
+// behaves the same over file:// and http://.
+(function(){
+  var q = new URLSearchParams(location.search);
+  window.TRIP_DIR = "";
+  if (q.get("preview") === "1"){
+    try {
+      var draft = localStorage.getItem("tripbuilder-preview");
+      if (draft){ window.TRIP = JSON.parse(draft); window.__PREVIEW__ = true; return; }
+    } catch(e){}
+  }
+  var v = q.get("trip") || q.get("config");
+  if (v && /^[a-z0-9-]+$/i.test(v)) window.TRIP_DIR = "trips/" + v + "/";
+  document.write('<script src="' + window.TRIP_DIR + 'trip-config.js"><\/script>');
+})();
+</script>
+<script>
+// Optional costs file, named by the config's `costsFile`. Kept separate and
+// git-ignored: GitHub Pages serves a public URL even from a private repo, so
+// real amounts must never sit in the committed config.
+(function(){
+  if (typeof TRIP === "undefined" || !TRIP.costsFile) return;
+  if (!/^[a-z0-9.\-]+\.js$/i.test(TRIP.costsFile)) return;
+  document.write('<script src="' + window.TRIP_DIR + TRIP.costsFile + '"><\/script>');
+})();
+</script>
+<script>
+/* ===========================================================================
+   DEMO CLOCK — only ever active when the loaded config declares `demo.enabled`.
+   Absent from every real trip config, so this is inert in normal use.
+
+   WHY IT LIVES HERE, BETWEEN THE CONFIG AND THE ENGINE:
+   The engine reads the real clock in ~15 places and runs 17 IIFEs once on load
+   that write straight into the DOM. There is no single "today" to override.
+   Rather than refactor 17 working IIFEs into re-callable functions — on an app
+   in daily use by a family abroad — this shifts `Date` itself before any of
+   them run. Every clock read then recomputes naturally against the demo date,
+   and nothing downstream needs to know. Scrubbing reloads the page, so the two
+   can never drift out of sync.
+
+   This script must stay ABOVE the engine and BELOW the config: it needs
+   TRIP.trip.destinationTimeZone, and nothing may have read the clock yet.
+   =========================================================================== */
+(function(){
+  if (typeof TRIP === "undefined" || !TRIP.demo || !TRIP.demo.enabled) return;
+
+  var RealDate = Date;
+  var q = new URLSearchParams(location.search);
+  var D = TRIP.demo;
+
+  /* Story mode. `beat` is 1-indexed and wins over `demo`, because a beat IS a
+     date plus whether the scripted update has been published by that point.
+     A clean open with no parameters starts the story at beat 1 — that is the
+     state a pitch link should land in. Dragging the scrubber clears `beat`,
+     which is how you leave the running order and explore freely. */
+  var story     = Array.isArray(D.story) && D.story.length ? D.story : null;
+  var dateStr   = q.get("demo");
+  var hasDate   = /^\d{4}-\d{2}-\d{2}$/.test(dateStr || "");
+  var beatParam = parseInt(q.get("beat"), 10);
+  var beat      = null;
+
+  if (story){
+    if (beatParam >= 1 && beatParam <= story.length) beat = beatParam;
+    else if (!hasDate) beat = 1;
+  }
+  if (beat){
+    dateStr = story[beat - 1].date;
+    hasDate = true;
+  }
+  if (!hasDate) dateStr = D.defaultDate;
+
+  /* The instant that is `hms` on `ds` in the destination's timezone.
+
+     Iterating converges because we cannot construct a Date directly in a named
+     zone: we guess, ask what destination wall-clock the guess represents, and
+     correct by the difference. Two passes is enough; three is free insurance
+     across DST boundaries. Uses RealDate throughout — the shim is not installed
+     until after this has run. */
+  function instantAtDestLocal(ds, tz, hms){
+    var guess = new RealDate(ds + "T" + hms + "Z");
+    for (var i = 0; i < 3; i++){
+      var asDest    = new RealDate(guess.toLocaleString("en-US", { timeZone: tz }));
+      var wantLocal = new RealDate(ds + "T" + hms);
+      guess = new RealDate(guess.getTime() + (wantLocal - asDest));
+    }
+    return guess;
+  }
+
+  var TZONE = TRIP.trip.destinationTimeZone || "UTC";
+
+  /* Keep the real time of day, move only the date. The "over there right now"
+     clock then reads true and ticks while the page is open, and the "right now
+     they're probably…" line tracks the actual hour in Cambodia — which matters
+     in a demo whose whole subject is time. An anchor at a fixed hour would show
+     the same frozen clock at every scrub position.
+
+     The day index stays exact by construction: the destination-local date of
+     the shifted instant is `ds` by definition, because we set the destination
+     wall-clock to the time it already is there. The resulting offset is a whole
+     number of days, so nothing drifts.
+
+     hourCycle h23 rather than hour12:false — the latter renders midnight as
+     "24:00:00" in some engines, which would parse as the following day. */
+  var hms = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZONE, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+  }).format(new RealDate());
+
+  var target = instantAtDestLocal(dateStr, TZONE, hms);
+  if (isNaN(target.getTime())) return;          // bad date — leave the real clock alone
+  var OFFSET = target.getTime() - RealDate.now();
+
+  /* Subclassing rather than wrapping keeps `instanceof Date` true and leaves
+     every Date method, including the Intl formatting the engine leans on,
+     exactly as it was. Only the no-argument constructor and `now()` move. */
+  var DemoDate = class extends RealDate {
+    constructor(){
+      if (arguments.length === 0) super(RealDate.now() + OFFSET);
+      else super(...arguments);
+    }
+    static now(){ return RealDate.now() + OFFSET; }
+  };
+  DemoDate.parse = RealDate.parse;
+  DemoDate.UTC   = RealDate.UTC;
+  window.Date = DemoDate;
+
+  /* Keep "Itinerary last updated …" plausible at whatever date the scrubber is
+     on. A config's `updated` is a fixed date; scrub behind it and the app would
+     claim to have been updated in the future. */
+  if (D.updatedLagDays != null){
+    var lag = new RealDate(dateStr + "T12:00:00Z");
+    lag.setUTCDate(lag.getUTCDate() - D.updatedLagDays);
+    var lagStr = lag.toISOString().slice(0, 10);
+    TRIP.trip.updated = (D.updatedFloor && lagStr < D.updatedFloor) ? D.updatedFloor : lagStr;
+  }
+
+  /* Demo #2: the scripted update. Applied to TRIP before the engine reads it,
+     which is precisely what editing the config file and redeploying would have
+     done — same object, same fields, same render path. TRIP is freshly parsed
+     on every load, so mutating it here cannot leak into the next one. */
+  /* Updates are CUMULATIVE and in trip order, which is why the published state
+     is a COUNT rather than a set of ids: a change that has gone out stays out,
+     so "the first two have landed" says everything there is to say about where
+     the trip has got to. It also keeps the URL something you can read off a
+     projector — ?update=2, not a comma-separated list of slugs.
+
+     A beat's `updates: N` and `?update=N` mean the same thing and the larger
+     wins. That is what lets you publish from inside a beat which arrives in
+     the before state, without dropping out of the running order. */
+  var UPDATES = Array.isArray(D.updates) ? D.updates
+              : (D.update ? [D.update] : []);        // configs written before this was a list
+  var published = Math.max(beat ? (story[beat - 1].updates | 0) : 0,
+                           parseInt(q.get("update"), 10) || 0);
+  published = Math.max(0, Math.min(published, UPDATES.length));
+
+  UPDATES.slice(0, published).forEach(function(upd){
+    if (!upd || !upd.patch) return;
+    if (upd.patch.trip) Object.assign(TRIP.trip, upd.patch.trip);
+    /* Whole-array replace rather than a merge. A rebooking changes which
+       flights exist, not just their times: the missed connection disappears
+       and two new legs take its place, so there is no stable per-flight
+       identity to merge against. */
+    if (upd.patch.flights) TRIP.flights = upd.patch.flights;
+    if (upd.patch.days){
+      Object.keys(upd.patch.days).forEach(function(dt){
+        var day = (TRIP.days || []).filter(function(d){ return d.date === dt; })[0];
+        if (day) Object.assign(day, upd.patch.days[dt]);
+      });
+    }
+    /* Key dates, keyed by date like days. These are the headline moments a
+       parent scans first, so an update that does not reach them leaves the
+       summary contradicting the detail below it. */
+    if (upd.patch.keyDates){
+      Object.keys(upd.patch.keyDates).forEach(function(dt){
+        var kd = (TRIP.keyDates || []).filter(function(k){ return k.date === dt; })[0];
+        if (kd) Object.assign(kd, upd.patch.keyDates[dt]);
+      });
+    }
+    /* Trek headline figures. A route change alters the total distance, and
+       the completion state is `km >= totalKm` — leave the total alone and a
+       shortened trek can never finish. */
+    if (upd.patch.trek && TRIP.trek) Object.assign(TRIP.trek, upd.patch.trek);
+  });
+
+  window.__DEMO__ = { date: dateStr, offset: OFFSET, beat: beat, cfg: D,
+                      updates: UPDATES, published: published, updated: published > 0 };
+})();
+</script>
+<script>
+/* ===========================================================================
+   ENGINE — nothing below is specific to any one trip. Everything it renders
+   comes from the TRIP object in the config file loaded above.
+   =========================================================================== */
+
+if (typeof TRIP === "undefined") {
+  document.body.innerHTML = '<main style="padding:40px 20px;font-family:Inter,sans-serif">' +
+    '<h1 style="font-family:Fraunces,serif">No trip config loaded</h1>' +
+    '<p>Expected a <code>trip-config.js</code> alongside this file, defining <code>const TRIP</code>. ' +
+    'Working from the repo? Name the trip: <code>index.html?trip=cambodia</code> loads ' +
+    '<code>trips/cambodia/trip-config.js</code>. ' +
+    'Generate one with <a href="setup.html">setup.html</a>.</p></main>';
+  throw new Error("TRIP config missing");
+}
+
+/* Unmistakable marker when viewing an unpublished draft, so a preview is never
+   mistaken for what everyone else can see. */
+if (window.__PREVIEW__) {
+  const b = document.createElement("div");
+  b.style.cssText = "position:sticky;top:0;z-index:100;background:#8A6D3B;color:#fff;padding:7px 14px;"
+    + "font:600 13px/1.4 Inter,sans-serif;text-align:center";
+  b.textContent = "PREVIEW — unpublished draft, visible only to you. Publish from the Trip Builder to share it.";
+  document.body.prepend(b);
+}
+
+/* A keepsake: the trip ended over 30 days ago, and this is the memory of it
+   (scripts/make-keepsake.js). Said once, at the top, so nobody reads the
+   itinerary as current or goes looking for the bookings that were taken out. */
+if (TRIP.keepsake) {
+  const b = document.createElement("div");
+  b.style.cssText = "background:var(--surface);border-bottom:1px solid var(--border);padding:9px 16px;"
+    + "font:500 calc(14px * var(--fs))/1.4 Inter,sans-serif;text-align:center;color:var(--text-muted)";
+  b.textContent = "This trip has ended — kept here as a memory. Bookings, contacts and other details used during the trip have been taken out.";
+  document.body.prepend(b);
+}
+
+/* --- iOS PWA staleness fix ------------------------------------------------
+   iOS home-screen PWAs often resume a suspended page from memory rather than
+   reloading, so the service worker's network-first fetch never re-runs and the
+   app can show hours-old data. Force a real reload after a long background. */
+(function(){
+  let hiddenAt = null;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
+    if (document.visibilityState === "visible" && hiddenAt && (Date.now() - hiddenAt > 5*60*1000)) location.reload();
+    hiddenAt = null;
+  });
+})();
+
+/* --- Small helpers -------------------------------------------------------- */
+const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const $  = id => document.getElementById(id);
+// A link the config gives as a relative path ("tickets/x.pdf") is a file in the
+// trip's own folder, so resolve it there. Live that folder is the site root and
+// this changes nothing; from the repo it is trips/<name>/.
+const tripFile = u => (u && !/^([a-z][a-z0-9+.-]*:|\/|#)/i.test(u)) ? (window.TRIP_DIR || "") + u : u;
+const storeKey = n => (TRIP.storagePrefix || "trip-") + n;
+
+/* Carried over from the first version of the app (the one-file app on GitHub
+   Pages, 2026). It kept a phone's messages, name and pronoun under other key
+   names; a site that replaces it at the same address lists the old prefixes in
+   `carryOver`, and the first time a phone opens it they are copied across, so
+   nothing anyone wrote is lost. Once per phone; the old keys are left as they
+   were. Old messages kept their date as an ISO string; it is shown the way
+   this version writes it. */
+(function(){
+  const from = (TRIP.carryOver || []).filter(p => typeof p === "string" && p);
+  if (!from.length) return;
+  try {
+    const DONE = storeKey("carried-over");
+    if (localStorage.getItem(DONE)) return;
+    const get = k => localStorage.getItem(k);
+    const notes = (() => { try { return JSON.parse(get(storeKey("notes")) || "[]"); } catch(e){ return []; } })();
+    const seen = new Set(notes.map(n => n && n.text)), carried = [];
+    from.forEach(p => {
+      if (!get(storeKey("traveller")) && get(p + "traveler-name")) localStorage.setItem(storeKey("traveller"), get(p + "traveler-name"));
+      const pr = get(p + "traveler-pronoun");
+      if (!get(storeKey("pronoun")) && /^(he|she|they)$/.test(pr || "")) localStorage.setItem(storeKey("pronoun"), pr);
+      if (!get(storeKey("text-size")) && get(p + "text-size")) localStorage.setItem(storeKey("text-size"), get(p + "text-size"));
+      let old = []; try { old = JSON.parse(get(p + "family-notes") || "[]"); } catch(e){}
+      (Array.isArray(old) ? old : []).forEach(n => {
+        if (!n || !n.text || seen.has(n.text)) return;
+        seen.add(n.text);
+        const d = new Date(n.date);
+        carried.push({ text: n.text, date: isNaN(d) ? String(n.date || "") : d.toLocaleString("en-GB", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }), at: isNaN(d) ? 0 : +d });
+      });
+    });
+    // Newest first, as both versions list them, after anything already written here.
+    carried.sort((a, b) => b.at - a.at);
+    if (carried.length) localStorage.setItem(storeKey("notes"), JSON.stringify(notes.concat(carried.map(({ text, date }) => ({ text, date })))));
+    localStorage.setItem(DONE, new Date().toISOString());
+  } catch(e){}
+})();
+
+// Custom URL schemes for "Open {app}" buttons, tried before falling back to the
+// https link — see openApp() below for why. Declared here (not near openApp/
+// linkRow further down) because the "Tickets today" callout references it and
+// runs earlier in the script; a `const` isn't hoisted the way a function
+// declaration is, so it has to physically come first or every render before
+// this point would throw.
+const APP_SCHEMES = {
+  axs: "axs://", ticketmaster: "ticketmaster://",
+  airbnb: "airbnb://", expedia: "expedia://", hertz: "hertz://",
+};
+
+/* Which timezone should times be shown in? There's no single right answer, so
+   it's the viewer's choice and it sticks:
+
+     "there"  — local to the place the time refers to (the departure airport,
+                the car hire desk). What an airline quotes. Right when you're
+                the one travelling, or want to picture what they're doing.
+     "here"   — the viewer's own device timezone. Right when you're at home
+                working out when to set off for the airport to collect someone.
+
+   Defaults to "there" because it matches how tickets and bookings are written.
+   Every timestamp in the config carries its own UTC offset so both are possible
+   from the same data. */
+/* --- Text size ---------------------------------------------------------------
+   Every reader-facing font size in the stylesheet is calc(Npx * var(--fs)), so
+   this one variable scales the lot. A per-viewer choice kept on their own
+   device, like the time display: a grandparent needing larger text should not
+   change it for anyone else.
+
+   Why not rely on browser zoom alone. Pinch-zoom is allowed (the viewport no
+   longer blocks it), but zoom makes the page wider than the screen, so every
+   line means scrolling sideways — fine for reading a phone number, miserable
+   for a whole itinerary. This keeps text wrapping to the screen at any size.
+
+   Applied here, before the first render, so the page never flashes small. */
+const TEXT_SIZES = [
+  { v: 1,    label: "Standard" },
+  { v: 1.15, label: "Large" },
+  { v: 1.3,  label: "Larger" },
+  { v: 1.5,  label: "Largest" },
+];
+const TEXT_KEY = storeKey("text-size");
+function applyTextSize(v){
+  document.documentElement.style.setProperty("--fs", String(v));
+  // For the few layouts that need to change shape, not just scale — side-by-side
+  // columns sized in pixels stop fitting a phone well before the text does.
+  document.documentElement.classList.toggle("ts-large", v >= 1.3);
+}
+(function(){
+  let v = 1;
+  try { v = parseFloat(localStorage.getItem(TEXT_KEY)) || 1; } catch(e){}
+  // Only a size we still offer — a stored value from an older build could be
+  // anything, and 3× text breaks every layout in the app.
+  if (!TEXT_SIZES.some(t => t.v === v)) v = 1;
+  applyTextSize(v);
+})();
+
+function initTextSizeControl(){
+  const btn = document.getElementById("textSizeBtn");
+  const panel = document.getElementById("textSizePanel");
+  if (!btn || !panel) return;
+  const current = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--fs")) || 1;
+  const draw = () => {
+    panel.innerHTML = `<h2>Text size</h2><div class="ts-opts">` +
+      TEXT_SIZES.map(t => `<button type="button" data-fs="${t.v}" aria-pressed="${t.v === current()}"
+        aria-label="${t.label}" style="font-size:${Math.round(15 * t.v)}px">A</button>`).join("") +
+      `</div><p>Saved on this phone only. Pinch to zoom still works too.</p>`;
+    panel.querySelectorAll("[data-fs]").forEach(b => b.addEventListener("click", () => {
+      const v = parseFloat(b.dataset.fs);
+      applyTextSize(v);
+      try { localStorage.setItem(TEXT_KEY, String(v)); } catch(e){}
+      // Update in place rather than redrawing. A redraw detached the tapped
+      // button, so the tap-outside handler below saw a click on something no
+      // longer inside the panel and closed it — nobody could step through the
+      // sizes to compare them.
+      panel.querySelectorAll("[data-fs]").forEach(o =>
+        o.setAttribute("aria-pressed", String(parseFloat(o.dataset.fs) === v)));
+      // The map measures its box once; text reflow can change the space around it.
+      if (window.__tripMap && window.__tripMap.invalidateSize) window.__tripMap.invalidateSize();
+    }));
+  };
+  const open = yes => {
+    panel.hidden = !yes;
+    btn.setAttribute("aria-expanded", String(yes));
+    if (yes){ draw(); const on = panel.querySelector('[aria-pressed="true"]'); if (on) on.focus(); }
+  };
+  btn.addEventListener("click", () => open(panel.hidden));
+  // Close on Escape (returning focus, so keyboard users are not stranded) and on
+  // a tap anywhere else.
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && !panel.hidden){ open(false); btn.focus(); }
+  });
+  document.addEventListener("click", e => {
+    if (!panel.hidden && !panel.contains(e.target) && e.target !== btn) open(false);
+  });
+}
+
+initTextSizeControl();
+
+const TIME_KEY = storeKey("time-mode");
+const timeMode = () => localStorage.getItem(TIME_KEY) === "here" ? "here" : "there";
+
+function fmtAt(iso, opts){
+  const s = String(iso), d = new Date(s);
+  // "here" is just the default behaviour of toLocaleString — the browser's zone.
+  if (timeMode() === "here") return d.toLocaleString("en-GB", opts);
+  // 'Z' is an offset too — UTC. Treating it as "no offset" showed a Z time in
+  // the viewer's own zone while the toggle said "their time".
+  if (/Z$/i.test(s)) return d.toLocaleString("en-GB", Object.assign({ timeZone:"UTC" }, opts));
+  const m = s.match(/([+-])(\d{2}):?(\d{2})$/);
+  if (!m) return d.toLocaleString("en-GB", opts); // no offset at all — nothing to shift to
+  const offMin = (m[1] === "-" ? -1 : 1) * (parseInt(m[2],10)*60 + parseInt(m[3],10));
+  return new Date(d.getTime() + offMin*60000)
+    .toLocaleString("en-GB", Object.assign({ timeZone:"UTC" }, opts));
+}
+
+// Short label for the viewer's own zone, e.g. "BST" — so the toggle says what
+// "my time" actually means rather than leaving them to guess.
+function viewerZoneLabel(){
+  try {
+    const p = new Intl.DateTimeFormat("en-GB",{ timeZoneName:"short" }).formatToParts(new Date());
+    const z = p.find(x => x.type === "timeZoneName");
+    return z ? z.value : "";
+  } catch(e){ return ""; }
+}
+
+/* --- Name and pronoun tokens ---------------------------------------------
+   Config text uses {name}, {subj}, {be} etc. so no trip file ever has to
+   hardcode a name or assume a gender. Families can override the name and
+   pronouns in-app; the stored values win over the config defaults. */
+const PRONOUNS = {
+  he:   { subj:"he",   Subj:"He",   obj:"him",  poss:"his",   Poss:"His",   be:"he's",    Be:"He's",    will:"he'll",   was:"was"  },
+  she:  { subj:"she",  Subj:"She",  obj:"her",  poss:"her",   Poss:"Her",   be:"she's",   Be:"She's",   will:"she'll",  was:"was"  },
+  they: { subj:"they", Subj:"They", obj:"them", poss:"their", Poss:"Their", be:"they're", Be:"They're", will:"they'll", was:"were" },
+};
+const NAME_STORED    = localStorage.getItem(storeKey("traveller"));
+const PRONOUN_STORED = localStorage.getItem(storeKey("pronoun"));
+const NAME      = (NAME_STORED || TRIP.trip.traveller || "the team").trim();
+const PKEY      = PRONOUN_STORED || TRIP.trip.pronoun || "they";
+const P         = PRONOUNS[PKEY] || PRONOUNS.they;
+const IS_DEFAULT = !NAME_STORED;
+
+function tok(s){
+  if (s == null) return "";
+  return String(s)
+    .replace(/\{name\}/g, NAME)
+    .replace(/\{trekArea\}/g, (TRIP.trek && TRIP.trek.areaLabel) || "")
+    .replace(/\{(subj|Subj|obj|poss|Poss|be|Be|will|was)\}/g, (m, k) => P[k] != null ? P[k] : m);
+}
+// Tokenised *and* HTML-escaped, for anything a user could have typed.
+const tokEsc = s => esc(tok(s));
+
+/* --- Home-screen icon -------------------------------------------------------
+   Auto-built, not authored: nobody has to source or design app art per trip.
+   It's the trip's own gradient (primary -> primaryDeep, the same colours as
+   the hero) with the destination's first letter in the accent colour — so a
+   Cambodia trip and a Texas trip get visibly different icons on a phone's
+   home screen for free, from data every config already has.
+
+   `theme.iconLetter` overrides the auto-picked letter, if destination label or
+   trip title don't give the right one to lead with (e.g. a trip titled
+   "The Big One" wants a letter that isn't "T" for "The").
+============================================================================= */
+async function buildTripIcon(){
+  const t = TRIP.theme || {};
+  /* An explicit `iconLetter` is used exactly as given, so it can be a glyph as
+     well as a letter. `iconArt` outranks it: a drawn motif is the nicer option
+     and the reason this stopped being letters-only. */
+  const set = String(t.iconLetter || "").trim();
+  const source = TRIP.trip.destinationLabel || TRIP.trip.title || "?";
+  const glyph = set || (source.trim().match(/[A-Za-z0-9]/) || ["?"])[0].toUpperCase();
+
+  // Give the display font a moment to load so the letter isn't drawn in a generic
+  // fallback face — but never block on it. Matters most on a first-ever visit,
+  // before the font's been cached by the service worker.
+  try {
+    await Promise.race([ document.fonts.load('700 400px Fraunces'), new Promise(r => setTimeout(r, 1200)) ]);
+  } catch(e){}
+
+  const opts = { primary: t.primary, primaryDeep: t.primaryDeep, accent: t.accent,
+                 art: t.iconArt, glyph };
+  const draw = size => drawTripIcon(Object.assign({ size }, opts));
+  // iOS home screen (180), two Android/PWA manifest sizes, and a browser-tab favicon.
+  return { icon180: draw(180), icon192: draw(192), icon512: draw(512), favicon32: draw(32) };
+}
+
+/* --- Theme ----------------------------------------------------------------
+   The config's palette becomes CSS custom properties, so the stylesheet above
+   never names a colour. This is what makes a trip's own colour story possible
+   without editing CSS. */
+(async function(){
+  const t = TRIP.theme || {};
+  const map = {
+    primary:"--primary", primaryDeep:"--primary-deep", accent:"--accent",
+    background:"--bg", surface:"--surface", text:"--text", textBody:"--text-body",
+    textMuted:"--text-muted", border:"--border", borderStrong:"--border-strong",
+    past:"--past", success:"--success", warning:"--warning", alert:"--alert",
+  };
+  for (const k in map) if (t[k]) document.documentElement.style.setProperty(map[k], t[k]);
+
+  const appName = IS_DEFAULT ? TRIP.trip.title : `${NAME}'s ${TRIP.trip.title}`;
+  document.title = appName;
+  const meta = document.createElement("meta");
+  meta.name = "theme-color"; meta.content = t.primary || "#1B4332";
+  document.head.appendChild(meta);
+
+  const icons = await buildTripIcon();
+
+  const apple = document.createElement("link");
+  apple.rel = "apple-touch-icon"; apple.href = icons.icon180;
+  document.head.appendChild(apple);
+
+  const favicon = document.createElement("link");
+  favicon.rel = "icon"; favicon.type = "image/png"; favicon.href = icons.favicon32;
+  document.head.appendChild(favicon);
+
+  // PWA manifest is built at runtime so it picks up this trip's name/colours/icons.
+  const manifest = {
+    name: appName, short_name: (TRIP.trip.title||"Trip").split(" ")[0],
+    start_url: ".", display: "standalone",
+    background_color: t.background || "#F6F1E7", theme_color: t.primary || "#1B4332",
+    icons: [
+      { src: icons.icon192, sizes:"192x192", type:"image/png" },
+      { src: icons.icon512, sizes:"512x512", type:"image/png" },
+    ],
+  };
+  const link = document.createElement("link");
+  link.rel = "manifest";
+  link.href = "data:application/json," + encodeURIComponent(JSON.stringify(manifest));
+  document.head.appendChild(link);
+})();
+
+/* --- Trip-wide constants from config -------------------------------------- */
+const DAYS   = TRIP.days || [];
+const PHASES = TRIP.phases || {};
+const TZ     = TRIP.trip.destinationTimeZone || "UTC";
+
+/* --- Where are we in the trip? -------------------------------------------
+   Day index is computed from the date in the DESTINATION's timezone, so the
+   app rolls over to "day N" when it does there, not when it does here. */
+/* Today's date on the trip's clock, as YYYY-MM-DD. Built from the zone's own
+   date parts. The old way — toLocaleString in the zone, re-parsed, then
+   toISOString() — read the destination's
+   wall clock as if it were the viewer's, then converted to UTC, so "today" was
+   out by the viewer's own offset: a relative in Chicago saw tomorrow from early
+   evening, and a UK viewer saw yesterday for the first hour after midnight
+   there. It moved the day number, the quiet-period banner and tickets-today. */
+function destToday(){
+  const p = {};
+  new Intl.DateTimeFormat("en-GB", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" })
+    .formatToParts(new Date()).forEach(x => { p[x.type] = x.value; });
+  return `${p.year}-${p.month}-${p.day}`;
+}
+function dayIndexForToday(){
+  if (!DAYS.length) return 0;
+  const todayDest = destToday();
+  const hit = DAYS.findIndex(d => d.date === todayDest);
+  if (hit >= 0) return DAYS[hit].n;
+  return todayDest < DAYS[0].date ? 0 : DAYS[DAYS.length-1].n + 1;
+}
+const currentDayNum = dayIndexForToday();
+const status = currentDayNum < 1 ? "before" : (currentDayNum > DAYS.length ? "after" : "during");
+const currentDay = DAYS.find(d => d.n === currentDayNum) || null;
+
+/* --- Flights -------------------------------------------------------------- */
+const FLIGHTS = TRIP.flights || [];
+
+/* Live status comes from flight-status.json beside this page, written by the
+   server's flight poller (scripts/flight-poller.js) — one set of calls for
+   everybody, and no API key anywhere a phone can see. It used to be fetched
+   from AeroDataBox by every phone, with the key in the config. Keyed by
+   "<flight no>|<departure date>", so a flight number flown twice is two keys. */
+let __live = {}, __liveMeta = null;
+// On for every real trip unless its config turns it off; never for the demo's
+// scripted story or a keepsake. The server's poller follows the same rule.
+const LIVE_ON = !((TRIP.liveFlightStatus || {}).off || TRIP.keepsake || TRIP.sample || (TRIP.demo && TRIP.demo.enabled));
+const liveKey = f => `${f.no}|${String(f.dep || "").slice(0, 10)}`;
+const LIVE_STALE = 90 * 60e3;   // older than this, say when it was checked
+
+function flightStatus(f, prevArr){
+  const now = new Date(), arr = new Date(f.arr);
+  const dep = f.dep ? new Date(f.dep) : (prevArr || null);
+  const graceMs = (TRIP.flightGraceHours != null ? TRIP.flightGraceHours : 6) * 3600e3;
+  const hm = t => fmtAt(t, { hour:"2-digit", minute:"2-digit" });
+  const live = __live[liveKey(f)];
+
+  /* What the airline's data says, when the server has it. Each label says it
+     is confirmed, and when it was last checked if that was a while ago, so it
+     is never mistaken for the clock-based guess below. */
+  if (live && live.status && live.status !== "Unknown"){
+    /* The server looks only when the answer can have changed — before
+       departure, at the (new) departure time, at the estimated arrival — so a
+       long silence is normal. Say when it will look next rather than how old
+       the last look is; fall back to the age if it has none. */
+    const inMin = live.nextCheck ? Math.round((new Date(live.nextCheck) - now) / 6e4) : null;
+    const age = now - new Date(live.checkedAt);
+    const when = inMin != null && inMin > 0
+      ? ` · next check in ${inMin >= 60 ? Math.floor(inMin / 60) + "h" + (inMin % 60 ? " " + (inMin % 60) + "m" : "") : inMin + " min"}`
+      : age > LIVE_STALE ? ` · checked ${Math.round(age / 36e5 * 10) / 10}h ago` : "";
+    const arrT = live.arrRevised || live.arrScheduled || f.arr;
+    const depT = live.depRevised || live.depScheduled || f.dep;
+    switch (live.status){
+      case "Arrived":
+        return { label:`Landed ✅ ${hm(arrT)} (confirmed)`, cls: now >= new Date(new Date(arrT).getTime() + graceMs) ? "done" : "landed" };
+      case "Canceled": case "CanceledUncertain":
+        return { label:`Cancelled ❌ — check with the organiser${when}`, cls:"live alert" };
+      case "Diverted":
+        return { label:`Diverted ⚠️ — check with the organiser${when}`, cls:"live alert" };
+      case "Departed": case "EnRoute": case "Approaching":
+        // Past its estimated arrival and not yet confirmed down: say that,
+        // rather than "in the air" from a look taken hours ago.
+        if (now >= new Date(arrT)) return { label:`Due to have landed at ${hm(arrT)} — confirming${when}`, cls:"live" };
+        return { label:`In the air ✈️ (confirmed) — due ${hm(arrT)}${live.arrDelayMin >= 10 ? `, ${live.arrDelayMin}m late` : ""}${when}`, cls:"live" };
+      default: {
+        const late = live.depDelayMin >= 10;
+        const txt = late ? `Delayed ${Math.floor(live.depDelayMin/60) ? Math.floor(live.depDelayMin/60)+"h " : ""}${live.depDelayMin%60}m — now departing ${hm(depT)}`
+                         : `On time (${live.status === "Expected" ? "expected" : live.status.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()})`;
+        return { label: txt + when, cls: dep && now >= dep ? "live" : "" };
+      }
+    }
+  }
+
+  /* No live answer: the clock against the schedule, and it says so. It used to
+     read "In the air ✈️" and then "Landed ✅" — statements of fact the app had
+     no way to make. The grace period only decides when a leg leaves the list. */
+  const at = hm(f.arr);
+  if (now >= new Date(arr.getTime() + graceMs)) return { label:`Due to have landed at ${at} — not confirmed`, cls:"done" };
+  if (now >= arr) return { label:`Due to have landed at ${at} — not confirmed. Tap Track live to check.`, cls:"live" };
+  if (dep && now >= dep) return { label:"Due to be in the air — not confirmed", cls:"live" };
+  if (!f.dep && prevArr && now >= prevArr) return { label:"Due to be in transit — not confirmed", cls:"live" };
+  return { label:"Scheduled", cls:"" };
+}
+
+/* Fetch the server's file. `onChange` redraws the flights when it brings
+   something new. Quietly does nothing when the trip has live status off, in the
+   Builder's preview (there is no file), or offline with nothing saved. */
+let __liveLastFetch = 0, __liveOnChange = null;
+async function updateLiveFlights(force){
+  if (!LIVE_ON || window.__PREVIEW__) return;
+  if (!force && Date.now() - __liveLastFetch < 60e3) return;
+  __liveLastFetch = Date.now();
+  try {
+    const r = await fetch(window.TRIP_DIR + "flight-status.json", { cache: "no-store" });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (__liveMeta && __liveMeta.generated === j.generated) return;
+    __live = j.flights || {};
+    __liveMeta = { generated: j.generated, capReached: !!j.capReached };
+    if (__liveOnChange) __liveOnChange();
+  } catch(e){}
+}
+
+/* --- Header, progress, countdown ------------------------------------------ */
+$("eyebrow").textContent   = tok(TRIP.trip.eyebrow || "");
+$("pageTitle").textContent = IS_DEFAULT ? TRIP.trip.title : `${NAME}'s ${TRIP.trip.title}`;
+$("subtitle").textContent  = tok(TRIP.trip.subtitle || "");
+$("footer").textContent    = tok(TRIP.trip.footer || "");
+
+/* When was this itinerary last confirmed?
+   Updates are a republish, so the app can be confidently out of date — during
+   the Dubai delay families were reading something authoritative-looking that was
+   two days stale. Showing the date lets people judge for themselves, and after a
+   mid-trip update it's the visible proof the change actually went out. */
+(function(){
+  const u = TRIP.trip.updated;
+  if (!u) return;
+  const days = Math.floor((Date.now() - new Date(u + "T12:00:00Z")) / 864e5);
+  const when = new Date(u + "T12:00:00Z").toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"});
+  const el = document.createElement("div");
+  el.className = "updated-note" + (days > 7 && status === "during" ? " stale" : "");
+  el.textContent = days > 7 && status === "during"
+    ? `Itinerary last updated ${when} (${days} days ago) — check with the organiser if plans have changed since.`
+    : `Itinerary last updated ${when}.`;
+  $("footer").parentNode.insertBefore(el, $("footer"));
+})();
+
+(function(){
+  const total = DAYS.length;
+  const label = $("progressLabel"), fill = $("progressFill");
+  if (status === "before"){
+    // "Mon 12 Jul 2027", not "2027-07-12". The ISO form splits at its hyphens
+    // once text is enlarged — "2027-07-" on one line, "12" on the next — and a
+    // screen reader reads it out as a subtraction. Non-breaking spaces keep the
+    // date whole on narrow screens at any text size.
+    const d0 = DAYS.length ? DAYS[0].date : "";
+    const human = d0 ? new Date(d0 + "T12:00:00Z").toLocaleDateString("en-GB",
+      { weekday:"short", day:"numeric", month:"short", year:"numeric", timeZone:"UTC" }).replace(/ /g, " ") : "";
+    label.textContent = `Trip starts ${human}`;
+    fill.style.width = "0%";
+  }
+  else if (status === "after"){ label.textContent = `Trip complete — all ${total} days`; fill.style.width = "100%"; }
+  else { label.textContent = `Day ${currentDayNum} of ${total}`; fill.style.width = Math.round(currentDayNum/total*100) + "%"; }
+})();
+
+function renderCountdown(){
+  const row = $("countdownRow");
+  const dep = new Date(TRIP.trip.departureMoment);
+  // The scheduled landing home where there is one, otherwise the end of the
+  // last day. Either way it is the schedule, so the label afterwards says the
+  // trip is over — it used to say "home safe", which the app cannot know.
+  const lastArr = FLIGHTS.length && FLIGHTS[FLIGHTS.length-1].arr;
+  const end = lastArr ? new Date(lastArr)
+            : DAYS.length ? new Date(DAYS[DAYS.length-1].date + "T23:59:59Z") : null;
+  const now = new Date();
+  const fmt = ms => {
+    const d = Math.floor(ms/864e5), h = Math.floor(ms%864e5/36e5);
+    return d > 0 ? `${d}d ${h}h` : `${h}h ${Math.floor(ms%36e5/6e4)}m`;
+  };
+  let html = "";
+  if (now < dep) html = `<div class="countdown-box"><div class="countdown-num">${fmt(dep-now)}</div><div class="countdown-lbl">until departure ✈️</div></div>`;
+  else if (end && now < end) html =
+    `<div class="countdown-box"><div class="countdown-num">${currentDayNum}</div><div class="countdown-lbl">day of the trip</div></div>` +
+    `<div class="countdown-box"><div class="countdown-num">${fmt(end-now)}</div><div class="countdown-lbl">until due home 🏡</div></div>`;
+  else html = `<div class="countdown-box"><div class="countdown-num">🏁</div><div class="countdown-lbl">trip over</div></div>`;
+  row.innerHTML = html;
+}
+renderCountdown();
+
+/* --- "Over there right now" ----------------------------------------------- */
+function schedLine(day){
+  if (!day || !day.schedule || !day.schedule.length) return "";
+  const h = parseInt(new Intl.DateTimeFormat("en-GB",{timeZone:TZ,hour:"2-digit",hour12:false}).format(new Date()),10);
+  let act = day.schedule[0][1];
+  for (const [start, a] of day.schedule) if (h >= start) act = a;
+  return `<div class="right-now">🧭 <b>Right now ${P.be} probably:</b> ${tokEsc(act)}</div>`;
+}
+
+/* Where the traveller actually is today, which is not always the trip's
+   destination — a missed connection can strand them somewhere else for a day.
+
+   The weather already followed the day's coordinates. The clock and the label
+   did not, so during the Dubai delay this panel read "39°C in Phnom Penh":
+   the temperature was Dubai's, the place name was the itinerary's, and each
+   half was right on its own.
+
+   Opt-in per day. A day with no `tz` uses the trip's destination, so no
+   existing trip changes behaviour by adding this. The label falls out of the
+   zone name ("Asia/Dubai" → "Dubai") unless the day sets `tzLabel`.
+
+   Deliberately NOT used for the day index — see dayIndexForToday(). The
+   itinerary is planned in the destination's terms and should roll over when
+   the date does there, wherever the team happen to have been diverted to. */
+function whereTheyAreNow(){
+  const d = currentDay || {};
+  if (!d.tz) return { tz: TZ, label: TRIP.trip.destinationLabel || "" };
+  return { tz: d.tz, label: d.tzLabel || d.tz.split("/").pop().replace(/_/g, " ") };
+}
+
+function renderThereNow(){
+  const el = $("thereNow");
+  if (status !== "during"){ el.style.display = "none"; return; }
+  el.style.display = "";
+  const here = whereTheyAreNow();
+  const time = new Intl.DateTimeFormat("en-GB",{timeZone:here.tz,hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date());
+  const h = parseInt(time,10);
+  const part = h<5?"the middle of the night":h<12?"morning there":h<17?"afternoon there":h<21?"evening there":`${P.be} probably winding down`;
+  el.innerHTML = `<div class="tn-head">Over there right now</div>🕐 ${time} in ${esc(here.label)} — ${part}` +
+                 `<div id="weatherLine" style="margin-top:4px;opacity:.9"></div>`;
+  loadWeather();
+}
+renderThereNow();
+setInterval(renderThereNow, 30000);
+
+// Open-Meteo needs no key and no account. Fails silently — it's a nice-to-have.
+async function loadWeather(){
+  if (!currentDay || currentDay.lat == null) return;
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${currentDay.lat}&longitude=${currentDay.lng}&current=temperature_2m,relative_humidity_2m,weather_code`);
+    if (!r.ok) return;
+    const j = await r.json(), c = j.current;
+    if (!c) return;
+    const codes = {0:"clear ☀️",1:"mostly clear 🌤",2:"partly cloudy ⛅",3:"overcast ☁️",45:"foggy 🌫",48:"foggy 🌫",
+      51:"light drizzle 🌦",53:"drizzle 🌦",55:"drizzle 🌦",61:"light rain 🌧",63:"rain 🌧",65:"heavy rain 🌧",
+      80:"showers 🌦",81:"showers 🌦",82:"heavy showers ⛈",95:"thunderstorms ⛈",96:"thunderstorms ⛈",99:"thunderstorms ⛈"};
+    const w = $("weatherLine");
+    if (w) w.innerHTML = `🌡 ${Math.round(c.temperature_2m)}°C and ${codes[c.weather_code]||"—"} · 💧 ${c.relative_humidity_2m}% humidity`;
+  } catch(e){}
+}
+
+/* --- Quiet periods --------------------------------------------------------
+   The single most anxious stretch of a trip is the one where contact stops —
+   the trek, a long flight, anywhere without signal. Left alone the app just
+   carries on cheerfully, which reads as "nothing is happening" rather than
+   "nothing is *expected* to happen". Saying so plainly, and saying when news is
+   next likely, is the thing a WhatsApp group can never do.
+
+   Config: noContact: [{ from, to, reason, nextNews }] — omit and nothing shows. */
+(function(){
+  const windows = TRIP.noContact;
+  if (!Array.isArray(windows) || !windows.length) return;
+  const todayDest = destToday();
+
+  const active  = windows.find(w => todayDest >= w.from && todayDest <= w.to);
+  // Only flag one that's imminent, not one three weeks out.
+  const soon    = windows.find(w => {
+    if (todayDest >= w.from) return false;
+    const days = (new Date(w.from) - new Date(todayDest)) / 864e5;
+    return days > 0 && days <= 2;
+  });
+  const w = active || soon;
+  if (!w) return;
+
+  const el = document.createElement("div");
+  el.className = "quiet";
+  el.innerHTML = active
+    ? `<div class="quiet-head">📵 Quiet period — this is expected</div>
+       ${tokEsc(w.reason || "No contact expected right now.")}
+       ${w.nextNews ? `<div class="quiet-next">Next news expected: <b>${tokEsc(w.nextNews)}</b></div>` : ""}`
+    : `<div class="quiet-head">📵 Quiet period coming up</div>
+       From ${new Date(w.from+"T12:00:00Z").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"short",timeZone:"UTC"})} —
+       ${tokEsc(w.reason || "no contact expected.")}
+       ${w.nextNews ? `<div class="quiet-next">News expected again: <b>${tokEsc(w.nextNews)}</b></div>` : ""}`;
+  // Directly under the countdown, above the key dates — the first thing read.
+  $("keyDates").parentNode.insertBefore(el, $("keyDates"));
+})();
+
+/* --- Tickets today ---------------------------------------------------------
+   A `bookings` entry with a `when` date gets a prominent callout on that exact
+   day, so an event ticket doesn't sit buried in a long Info-tab list on the
+   one day it actually matters. The `appLink` deliberately points at the
+   ticketing app/site's general sign-in page, not the personalised
+   "view ticket" link from a confirmation email — those are tied to the
+   purchaser's account, may not open for someone else in the family, and can
+   expire before the trip. Same reuse of the quiet-period box style: both are
+   "read this first, right now" notices. */
+(function(){
+  const list = TRIP.bookings;
+  if (!Array.isArray(list) || !list.length) return;
+  const todayDest = destToday();
+  const today = list.filter(b => b.when === todayDest);
+  if (!today.length) return;
+
+  const el = document.createElement("div");
+  el.className = "quiet";
+  el.innerHTML = today.map(b => `
+    <div class="quiet-head">🎟 Today${b.time ? ` · ${tokEsc(b.time)}` : ""}</div>
+    <div style="font-family:'Fraunces',serif;font-size:calc(18px * var(--fs));margin:2px 0">${tokEsc(b.what)}</div>
+    ${b.beThereBy ? `<div style="font-weight:600;margin:4px 0">⏰ ${tokEsc(b.beThereBy)}</div>` : ""}
+    ${b.satNav ? `<div style="margin:6px 0"><a href="${esc(b.satNav)}" target="_blank" rel="noreferrer"
+        style="font-weight:600;color:var(--primary)">🧭 Directions ↗</a></div>` : ""}
+    ${b.note ? `${tokEsc(b.note)}` : ""}
+    ${b.appLink ? `<div style="margin-top:8px"><a href="${esc(tripFile(b.appLink))}" target="_blank" rel="noreferrer"
+        ${b.appName && APP_SCHEMES[b.appName.toLowerCase()] ? `onclick="openApp(event, '${esc(APP_SCHEMES[b.appName.toLowerCase()])}')"` : ""}
+        style="display:inline-block;background:var(--accent);color:var(--primary-deep);font-weight:600;
+               text-decoration:none;border-radius:8px;padding:8px 14px;font-size:calc(14px * var(--fs))">
+        Open ${esc(b.appName || "tickets")} ↗</a></div>` : ""}
+  `).join("");
+  $("keyDates").parentNode.insertBefore(el, $("keyDates"));
+})();
+
+/* --- The trip as events: calendar and "Next up" ------------------------------
+   The events themselves come from trip-calendar.js, shared with the server
+   (which writes the calendar an iPhone subscribes to), so the two cannot
+   differ. What is here is the page's side: the buttons, and the Next up card.
+
+   - iPhones and Macs subscribe to the calendar the server publishes with the
+     trip (calendar.json says where): one tap, and it keeps itself up to date.
+     A calendar file made on the phone does nothing on an iPhone.
+   - Android and Windows download a file made here, which their calendars open.
+   - "Next up" (trips read by the people travelling) shows what is on now or next. */
+const CAL = TripCalendar(TRIP, { tok, includeRefs: true });
+const CAL_AT_HOME = CAL.atHome;
+const tripEvents = CAL.events;
+const APPLE = /iP(hone|ad|od)|Macintosh/.test(navigator.userAgent);
+let CAL_SUB = null;   // the published calendar's address, once calendar.json is read
+fetch(window.TRIP_DIR + "calendar.json", { cache: "no-store" })
+  .then(r => r.ok ? r.json() : null)
+  .then(j => { if (j && j.path) { CAL_SUB = j.path; document.dispatchEvent(new Event("calendar-ready")); } })
+  .catch(() => {});
+
+/* The download, for Android and computers: a file their calendar opens. */
+function addToCalendar(events, name){
+  if (!events.length) return;
+  const text = CAL.ics(events);
+  const url = URL.createObjectURL(new Blob([text], { type: "text/calendar;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = (name || "trip").replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "") + ".ics";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+// One button, anywhere: data-cal="all" for the whole trip, or an event's key.
+// Not on iPhones and Macs, where a file made on the phone does nothing: they
+// use the subscription on the Info tab instead.
+const calButton = (key, label) => !key || (APPLE && key !== "all") ? "" :
+  `<button type="button" class="cal-add" data-cal="${esc(key)}">📅 ${esc(label || "Add to calendar")}</button>`;
+// The event made from a given flight or booking, for its own button.
+const eventKeyFor = (kind, src) => { const e = tripEvents().find(x => x.kind === kind && x.src === src); return e ? e.key : ""; };
+document.addEventListener("click", ev => {
+  const b = ev.target.closest && ev.target.closest("[data-cal]");
+  if (!b) return;
+  const all = tripEvents();
+  const key = b.dataset.cal;
+  const pick = key === "all" ? all : all.filter(e => e.key === key);
+  addToCalendar(pick, key === "all" ? CAL.plain(TRIP.trip.title) : (pick[0] ? pick[0].title : "event"));
+});
+
+function calendarCard(){
+  if (!tripEvents().length || TRIP.keepsake) return "";
+  const what = CAL_AT_HOME
+    ? "The flights, key moments and quiet periods, in your own calendar — shown in your own time."
+    : "Every flight, booking, stay and the car, with a reminder before each one. Times are right wherever the phone is.";
+  // On an iPhone or Mac: subscribe, once the server's calendar is known. The
+  // card is redrawn when calendar.json arrives (see "calendar-ready").
+  const action = APPLE
+    ? (CAL_SUB
+        ? `<a class="cal-add" href="webcal://${esc(location.host)}${esc(location.pathname.replace(/[^/]*$/, ""))}${esc(window.TRIP_DIR + CAL_SUB)}">📅 Subscribe in Calendar</a>
+           <p class="placeholder" style="font-size:calc(12px * var(--fs));margin:10px 0 0">Tap <b>Subscribe</b>, then <b>Add</b>. Your calendar then keeps itself up to date — when the trip changes, it changes too, within a few hours.</p>
+           <p class="placeholder" style="font-size:calc(12px * var(--fs));margin:6px 0 0"><b>To remove it after the trip:</b> in Calendar, tap <b>Calendars</b> at the bottom, tap the <b>ⓘ</b> beside ${esc(CAL.plain(TRIP.trip.title))}, then <b>Delete Calendar</b>.</p>`
+        : `<p class="placeholder" style="margin:0">Open this app with signal to add the trip to your calendar.</p>`)
+    : `${calButton("all", "Add the whole trip")}
+       <p class="placeholder" style="font-size:calc(12px * var(--fs));margin:10px 0 0">If plans change, add it again — most calendars update these events rather than doubling them.</p>`;
+  return `<div class="info-card"><h4>📅 Add to your calendar</h4>
+    <p class="placeholder" style="margin-bottom:10px">${what}</p>${action}</div>`;
+}
+
+/* --- Next up ---------------------------------------------------------------
+   For the people travelling: the one thing that is on now, or next, with what
+   they need for it. The itinerary says what the day is; this says what to do
+   in the next few hours — the part of a friends' trip app that is "where do we
+   need to be, and when". */
+(function(){
+  if (CAL_AT_HOME) return;
+  const host = document.createElement("div");
+  $("currentCard").parentNode.insertBefore(host, $("currentCard"));
+  const within = 36 * 36e5;
+
+  // Times read as the rest of the app does: local to the place ("their
+  // time") or the viewer's own, per the toggle on the Info tab.
+  const hm = { hour:"2-digit", minute:"2-digit" };
+  const clock = (e, which) => {
+    const iso = e.kind === "flight" ? (which === "start" ? e.src.dep : e.src.arr)
+              : e.kind === "car" && which === "start" ? e.src.when : null;
+    if (iso) return fmtAt(iso, hm);
+    const d = which === "start" ? e.start : e.end;
+    return timeMode() === "here" ? d.toLocaleTimeString("en-GB", hm)
+                                 : d.toLocaleTimeString("en-GB", Object.assign({ timeZone: e.tz || TZ }, hm));
+  };
+  const when = e => {
+    const mins = Math.round((e.start - new Date()) / 6e4);
+    if (mins <= 0) return `Now · until ${clock(e, "end")}`;
+    const rel = mins < 60 ? `in ${mins} min` : `in ${Math.floor(mins / 60)}h ${mins % 60}m`;
+    const day = destTodayOf(e.start) === destToday() ? "Today" : "Tomorrow";
+    return `${day} ${clock(e, "start")} · ${rel}`;
+  };
+
+  function draw(){
+    const now = new Date();
+    const timed = tripEvents().filter(e => e.start && e.kind !== "stay" && e.end > now && e.start - now < within);
+    // An untimed booking for today still belongs here, after anything timed.
+    const allDay = tripEvents().filter(e => e.kind === "booking" && !e.start && e.date === destToday());
+    const e = timed[0] || allDay[0];
+    if (!e){ host.innerHTML = ""; return; }
+    const s = e.src || {};
+    const on = e.start && e.start <= now;
+    host.innerHTML = `<div class="next-up">
+      <div class="quiet-head">${on ? "Happening now" : "Next up"}</div>
+      <div class="next-title">${esc(e.title)}</div>
+      <div class="next-when">${e.start ? esc(when(e)) : `Today${s.time ? " · " + esc(s.time) : ""}`}</div>
+      ${s.beThereBy ? `<div style="font-weight:600;margin:4px 0">⏰ ${tokEsc(s.beThereBy)}</div>` : ""}
+      ${e.location ? `<div class="next-where">${esc(e.location)}</div>` : ""}
+      <div class="next-actions">
+        ${s.satNav ? `<a class="next-btn" href="${esc(s.satNav)}" target="_blank" rel="noreferrer">🧭 Directions</a>` : ""}
+        ${s.appLink ? `<a class="next-btn" href="${esc(tripFile(s.appLink))}" target="_blank" rel="noreferrer">🎟 Open ${esc(s.appName || "tickets")}</a>` : ""}
+        ${e.kind === "flight" ? `<a class="next-btn" href="https://www.flightradar24.com/data/flights/${esc(String(s.no || "").replace(/[^A-Za-z0-9]/g, "").toLowerCase())}" target="_blank" rel="noreferrer">✈ Track live</a>` : ""}
+        ${calButton(e.key)}
+      </div></div>`;
+  }
+  draw();
+  setInterval(draw, 60e3);
+})();
+
+// The destination-zone date an instant falls on.
+function destTodayOf(d){
+  const p = {};
+  new Intl.DateTimeFormat("en-GB", { timeZone: TZ, year:"numeric", month:"2-digit", day:"2-digit" }).formatToParts(d).forEach(x => { p[x.type] = x.value; });
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+/* --- Key dates ------------------------------------------------------------ */
+(function(){
+  const el = $("keyDates"), list = TRIP.keyDates || [];
+  if (!list.length){ el.style.display = "none"; return; }
+  // Compare in the destination's timezone so an entry doesn't strike through
+  // early or late relative to where the trip actually is.
+  const todayDest = destToday();
+  el.innerHTML = `<div class="tn-head" style="font-family:'JetBrains Mono',monospace;font-size:calc(14px * var(--fs));letter-spacing:1px;text-transform:uppercase;color:var(--accent)">Key moments</div>` +
+    list.map(k => `<div class="key-date ${todayDest>k.date?'done':''}"><span class="kd-when">${esc(k.when)}</span><span class="kd-label">${tokEsc(k.label)}</span></div>`).join("");
+})();
+
+/* --- Today's card --------------------------------------------------------- */
+(function(){
+  if (!currentDay || status !== "during") return;
+  const p = PHASES[currentDay.phase] || { label:currentDay.phase, colour:"#666", icon:"" };
+  const photo = currentDay.photo && TRIP.photos ? TRIP.photos[currentDay.photo] : null;
+  $("currentCard").innerHTML = `
+    <div class="current-card">
+      ${photo ? `<img src="${esc(photo)}" alt="${tokEsc(currentDay.loc)}">` : ""}
+      <div class="inner">
+        <span class="phase-pill" style="background:${esc(p.colour)}">${esc(p.icon)} ${esc(p.label)}</span>
+        <h2 class="current-loc">${tokEsc(currentDay.loc)}</h2>
+        ${schedLine(currentDay)}
+        <p style="font-size:calc(17px * var(--fs));line-height:1.5;margin:0;color:var(--text-body)">${tokEsc(currentDay.summary)}</p>
+        ${currentDay.fact ? `<div class="fun-fact"><b>Today's fact:</b> ${tokEsc(currentDay.fact)}</div>` : ""}
+      </div>
+    </div>`;
+})();
+
+/* --- Why these colours ---------------------------------------------------- */
+(function(){
+  const el = $("themeStory"), t = TRIP.theme || {};
+  if (!t.story){ el.style.display = "none"; return; }
+  // story may contain deliberate markup (<i>…</i>) written by the trip author,
+  // so it's tokenised but not escaped — it's config, not user input.
+  el.innerHTML = `<h4>🎨 Why these colours?</h4><p class="placeholder">${tok(t.story)}</p>`;
+})();
+
+/* --- Itinerary ------------------------------------------------------------ */
+(function(){
+  const el = $("timeline");
+  if (!DAYS.length){ el.innerHTML = "<p>No days configured.</p>"; return; }
+  const pastCount = Math.max(0, Math.min(currentDayNum-1, DAYS.length));
+  const render = (showPast) => {
+    const shown = showPast ? DAYS : DAYS.filter(d => d.n >= currentDayNum);
+    el.innerHTML =
+      (!showPast && pastCount > 0 ? `<button class="past-days-toggle" id="showPast">▸ Show ${pastCount} earlier day${pastCount>1?"s":""} (already happened)</button>` : "") +
+      shown.map(d => {
+        const p = PHASES[d.phase] || { label:d.phase, colour:"#666", text:"#666", icon:"" };
+        const isToday = d.n === currentDayNum, isPast = d.n < currentDayNum;
+        const photo = d.photo && TRIP.photos ? TRIP.photos[d.photo] : null;
+        const mapUrl = d.map && TRIP.maps ? TRIP.maps[d.map] : null;
+        const dt = new Date(d.date + "T12:00:00Z");
+        return `<div class="day-row">
+          <div class="dot ${isToday?'today':isPast?'past':''}" tabindex="0" role="button" aria-expanded="${TRIP.keepsake?'true':'false'}" data-day="${d.n}">${d.n}</div>
+          <div class="day-card ${isToday?'today':''}" data-day="${d.n}" tabindex="0">
+            <div class="day-head">
+              <span class="day-date">${dt.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",timeZone:"UTC"})}</span>
+              <span class="phase-tag" style="color:${esc(p.text||p.colour)}">${esc(p.icon)} ${esc(p.label)}</span>
+            </div>
+            <div class="day-loc">${tokEsc(d.loc)}</div>
+            <div class="day-body${TRIP.keepsake ? " open" : ""}" id="body-${d.n}">
+              ${photo ? `<img class="day-photo" src="${esc(photo)}" alt="${tokEsc(d.loc)}" loading="lazy">` : ""}
+              <p class="day-summary">${tokEsc(d.summary)}</p>
+              ${d.fact ? `<p class="day-summary" style="font-size:calc(15px * var(--fs))"><b>Fun fact:</b> ${tokEsc(d.fact)}</p>` : ""}
+              ${mapUrl ? `<a href="${esc(mapUrl)}" target="_blank" rel="noreferrer">View on Google Maps ↗</a>` : ""}
+            </div>
+          </div>
+        </div>`;
+      }).join("");
+    const sp = $("showPast");
+    if (sp) sp.addEventListener("click", () => render(true));
+    el.querySelectorAll("[data-day]").forEach(node => {
+      const toggle = () => {
+        const b = $("body-" + node.dataset.day);
+        if (!b) return;
+        b.classList.toggle("open");
+        const dot = el.querySelector(`.dot[data-day="${node.dataset.day}"]`);
+        if (dot) dot.setAttribute("aria-expanded", b.classList.contains("open") ? "true" : "false");
+      };
+      node.addEventListener("click", toggle);
+      node.addEventListener("keydown", e => { if (e.key==="Enter"||e.key===" "){ e.preventDefault(); toggle(); } });
+    });
+  };
+  render(status !== "during");
+})();
+
+/* --- Map ------------------------------------------------------------------ */
+let map = null, routeBounds = null;
+(function(){
+  // `onMap:false` keeps a day off the route map while leaving it in the itinerary.
+  // Mainly for the days at either end that are really just getting there and back:
+  // a home airport 8,000km away stretches the map across two continents and squashes
+  // the part anyone actually wants to look at down to a few pixels.
+  const pts = DAYS.filter(d => d.lat != null && d.lng != null && d.onMap !== false);
+  if (!pts.length || typeof L === "undefined"){ $("map").style.display = "none"; return; }
+
+  map = L.map("map", { scrollWheelZoom:false });
+  window.__tripMap = map;   // so a text-size change can ask it to re-measure
+  L.Popup.mergeOptions({ closeButton:false });
+  const streetLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+    { attribution:"&copy; Esri, OpenStreetMap contributors", maxZoom:18 }).addTo(map);
+  // "Hybrid" — satellite imagery plus a labels overlay (place names, roads, borders),
+  // grouped so the toggle adds/removes both together. Plain satellite imagery on its
+  // own is hard to read anywhere without an obvious landmark.
+  const hybridLayer = L.layerGroup([
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { attribution:"&copy; Esri, Maxar, Earthstar Geographics", maxZoom:18 }),
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+      { attribution:"&copy; Esri", maxZoom:18 }),
+  ]);
+
+  // Map / Hybrid toggle, styled to match the app's own theme (not a Leaflet anchor
+  // control, so it can't be caught by viewers that intercept in-page hash links)
+  const mapTypeControl = L.control({ position:"topright" });
+  mapTypeControl.onAdd = function(){
+    const div = L.DomUtil.create("div");
+    L.DomEvent.disableClickPropagation(div);
+    div.style.cssText = "display:flex;background:#fff;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.2);overflow:hidden;font-family:Inter,sans-serif;font-size:calc(13px * var(--fs));font-weight:600;";
+    div.innerHTML = `
+      <button type="button" id="mapTypeStreet" style="border:none;padding:8px 14px;cursor:pointer;">Map</button>
+      <button type="button" id="mapTypeSat" style="border:none;padding:8px 14px;cursor:pointer;">Hybrid</button>`;
+    return div;
+  };
+  mapTypeControl.addTo(map);
+  map.whenReady(()=>{
+    const streetBtn = document.getElementById("mapTypeStreet");
+    const satBtn = document.getElementById("mapTypeSat");
+    const onStyle = "border:none;padding:8px 14px;cursor:pointer;background:var(--primary);color:#fff;";
+    const offStyle = "border:none;padding:8px 14px;cursor:pointer;background:#fff;color:var(--text);";
+    function setActive(which){
+      streetBtn.style.cssText = which==="street" ? onStyle : offStyle;
+      satBtn.style.cssText = which==="sat" ? onStyle : offStyle;
+      streetBtn.setAttribute("aria-pressed", which==="street");
+      satBtn.setAttribute("aria-pressed", which==="sat");
+    }
+    streetBtn.addEventListener("click", ()=>{ map.removeLayer(hybridLayer); map.addLayer(streetLayer); setActive("street"); });
+    satBtn.addEventListener("click", ()=>{ map.removeLayer(streetLayer); map.addLayer(hybridLayer); setActive("sat"); });
+    setActive("street");
+  });
+  map.__street = streetLayer;
+
+  const layers = {};
+  Object.keys(PHASES).forEach(k => layers[k] = L.layerGroup().addTo(map));
+
+  // Draw legs coloured by the phase of the day being travelled *to*.
+  for (let i=1; i<pts.length; i++){
+    const a = pts[i-1], b = pts[i];
+    if (a.lat===b.lat && a.lng===b.lng) continue;
+    const ph = PHASES[b.phase] || { colour:"#666" };
+    const grp = layers[b.phase] || map;
+    L.polyline([[a.lat,a.lng],[b.lat,b.lng]], { color:"#fff", weight:6, opacity:.7 }).addTo(grp);
+    L.polyline([[a.lat,a.lng],[b.lat,b.lng]], { color:ph.colour, weight:3, opacity:.95 }).addTo(grp);
+  }
+
+  // A location visited more than once would stack markers exactly on top of
+  // each other, hiding the earlier ones — nudge repeats onto a small spiral.
+  const seen = {};
+  pts.forEach(d => {
+    const key = d.lat.toFixed(4)+","+d.lng.toFixed(4);
+    const nth = seen[key] = (seen[key]||0) + 1;
+    let lat = d.lat, lng = d.lng;
+    if (nth > 1){
+      const ang = (nth-1) * 2.4, r = 0.035 * (1 + (nth-1)*0.35);
+      lat += r*Math.cos(ang); lng += r*Math.sin(ang);
+    }
+    const ph = PHASES[d.phase] || { colour:"#666", label:d.phase };
+    const isNow = d.n === currentDayNum;
+    const icon = L.divIcon({ className:"", iconSize:[26,26], iconAnchor:[13,13],
+      html:`<div style="width:26px;height:26px;border-radius:50%;background:${esc(ph.colour)};color:#fff;
+             border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);font:600 12px/22px 'JetBrains Mono',monospace;
+             text-align:center;${isNow?"outline:3px solid var(--accent);":""}">${d.n}</div>` });
+    L.marker([lat,lng], { icon, zIndexOffset: isNow?1000:0 })
+      .addTo(layers[d.phase] || map)
+      .bindPopup(`<b>Day ${d.n}: ${tokEsc(d.loc)}</b><br>${tokEsc(d.summary).slice(0,140)}…`);
+  });
+
+  routeBounds = L.latLngBounds(pts.map(d => [d.lat, d.lng])).pad(0.15);
+  map.fitBounds(routeBounds);
+
+  // Phase filter chips
+  $("mapControls").innerHTML =
+    `<p class="hint">Tap a phase to show or hide it on the map.</p><div class="chip-row">` +
+    Object.entries(PHASES).map(([k,p]) =>
+      `<label class="chip" data-phase="${esc(k)}"><input type="checkbox" checked>
+        <span style="width:12px;height:12px;border-radius:50%;background:${esc(p.colour)};display:inline-block"></span>
+        ${esc(p.icon)} ${esc(p.label)}</label>`).join("") + `</div>`;
+  $("mapControls").querySelectorAll(".chip").forEach(chip => {
+    const cb = chip.querySelector("input"), k = chip.dataset.phase;
+    cb.addEventListener("change", () => {
+      if (cb.checked){ map.addLayer(layers[k]); chip.classList.remove("off"); }
+      else { map.removeLayer(layers[k]); chip.classList.add("off"); }
+    });
+  });
+
+  /* The trip's own photos, where they were taken — like Google Photos' map.
+     Only photos whose position survived make-gallery.js have one (it keeps
+     positions for a private trip only). Photos close together on screen are
+     one pin with a count, regrouped as you zoom; tapping a pin opens the first
+     of them in the photo viewer, from where the rest are a swipe away. */
+  document.addEventListener("gallery-ready", () => {
+    const G = window.TRIP_GALLERY || [];
+    const placed = G.map((p, i) => ({ p, i })).filter(x => x.p.lat != null && x.p.lng != null);
+    if (!placed.length) return;
+    const dir = (window.TRIP_DIR || "") + "gallery/t/";
+    const photoLayer = L.layerGroup().addTo(map);
+    const draw = () => {
+      photoLayer.clearLayers();
+      const groups = [];
+      placed.forEach(x => {
+        const pt = map.latLngToLayerPoint([x.p.lat, x.p.lng]);
+        const g = groups.find(g => g.pt.distanceTo(pt) < 44);
+        g ? g.items.push(x) : groups.push({ pt, items: [x] });
+      });
+      groups.forEach(g => {
+        const x = g.items[0], n = g.items.length;
+        const icon = L.divIcon({ className: "", iconSize: [40, 40], iconAnchor: [20, 50],   // standing above the spot, clear of the day markers
+          html: `<div class="map-photo" style="background-image:url('${esc(dir + x.p.f)}')">${n > 1 ? `<span>${n}</span>` : ""}</div>` });
+        L.marker([x.p.lat, x.p.lng], { icon, zIndexOffset: 500 })
+          .on("click", () => {
+            // A big group, zoomed out: zoom in on it first, so it splits up.
+            if (n > 1 && map.getZoom() < 15) {
+              const b = L.latLngBounds(g.items.map(y => [y.p.lat, y.p.lng]));
+              if (b.getNorthEast().distanceTo(b.getSouthWest()) > 50) return map.fitBounds(b.pad(0.3), { maxZoom: 17 });
+            }
+            window.openGallery && window.openGallery(x.i);
+          })
+          .addTo(photoLayer);
+      });
+    };
+    map.on("zoomend viewreset resize", draw);   // resize: the map tab opening
+    draw();
+    const row = $("mapControls").querySelector(".chip-row");
+    if (row) {
+      row.insertAdjacentHTML("beforeend", `<label class="chip" data-phase="photos"><input type="checkbox" checked> 📷 Photos (${placed.length})</label>`);
+      const chip = row.lastElementChild, cb = chip.querySelector("input");
+      cb.addEventListener("change", () => {
+        if (cb.checked) { map.addLayer(photoLayer); chip.classList.remove("off"); }
+        else { map.removeLayer(photoLayer); chip.classList.add("off"); }
+      });
+    }
+  });
+})();
+
+/* --- The map, offline -------------------------------------------------------
+   A trip's site can carry its own map: a cut of OpenStreetMap data round every
+   place it stops (scripts/make-offline-map.js, at publish), described by
+   offline-map.json: street-level squares round each stop, over a lighter
+   overview of the whole route area (the squares alone left grey gaps between
+   stops when zoomed out).
+
+   It sits UNDER the usual map. With signal, Esri's map loads on top and looks
+   as it always has; without, Esri's tiles fail and ours shows through wherever
+   they are missing — no guessing whether there is signal. A card under the map
+   saves both files on the phone; the service worker then serves them from
+   there (mapPiece in sw.js), so the whole route works with no signal, zoomed
+   in to street level.
+
+   The usual map (Esri's) may not be saved ahead of time under its terms, which
+   is why this is our own. The satellite view stays online-only. */
+(function(){
+  if (!map || window.__PREVIEW__) return;
+  const host = $("offlineMapCard");
+  const MAP_CACHE = "trip-map-v1";
+  const MAP_LIB = "https://cdn.jsdelivr.net/npm/protomaps-leaflet@5.1.0/dist/protomaps-leaflet.js";
+  const JSON_URL = new URL(window.TRIP_DIR + "offline-map.json", location.href).href;
+  const mb = n => (n / 1e6).toFixed(n < 1e7 ? 1 : 0) + " MB";
+  let info = null, urls = [];
+
+  const loadScript = src => new Promise((ok, fail) => {
+    const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = fail;
+    document.head.appendChild(s);
+  });
+
+  async function saved(){
+    try {
+      const c = await caches.open(MAP_CACHE);
+      for (const u of urls) if (!(await c.match(u))) return false;
+      return urls.length > 0;
+    } catch(e){ return false; }
+  }
+
+  async function draw(state, pct){
+    if (!info) return;
+    const has = state ? state === "saved" : await saved();
+    host.innerHTML = `<div class="info-card offline-map">
+      <h4>🗺 The map without signal</h4>
+      ${state === "saving"
+        ? `<p class="placeholder">Saving the map… ${pct != null ? pct + "%" : ""} Keep the app open until it finishes.</p>`
+        : has
+          ? `<p class="placeholder"><b>Saved on this phone.</b> The whole route works without signal, down to street level.</p>
+             <button type="button" class="cal-add" id="offlineMapRemove">Remove it (frees ${mb(info.totalBytes || info.bytes)})</button>`
+          : `<p class="placeholder">With signal the map works as normal. To have it with <b>no signal</b> too, save it to this phone — ${mb(info.totalBytes || info.bytes)}, best on wifi before you go.</p>
+             <button type="button" class="card-btn" id="offlineMapSave">Save map for offline</button>
+             ${state === "failed" ? `<p class="placeholder" style="color:var(--alert)">That didn't finish — check the connection and try again.</p>` : ""}`}
+      <p class="placeholder" style="font-size:calc(12px * var(--fs));margin-top:8px">Without signal the map is OpenStreetMap's (via Protomaps), so it looks a little different. The Hybrid (satellite) view needs signal.</p>
+    </div>`;
+    const save = $("offlineMapSave"), remove = $("offlineMapRemove");
+    if (save) save.addEventListener("click", saveMap);
+    if (remove) remove.addEventListener("click", async () => {
+      try { const c = await caches.open(MAP_CACHE); for (const u of urls) await c.delete(u); } catch(e){}
+      tellWorker(); draw();
+    });
+  }
+
+  const tellWorker = () => { try { navigator.serviceWorker.controller && navigator.serviceWorker.controller.postMessage("map-changed"); } catch(e){} };
+
+  async function saveMap(){
+    draw("saving", 0);
+    try {
+      const total = info.totalBytes || info.bytes;
+      const blobs = [];
+      let got = 0, shown = -1;
+      for (const u of urls){
+        const res = await fetch(u, { cache: "no-store" });
+        if (!res.ok || !res.body) throw new Error("HTTP " + res.status);
+        const reader = res.body.getReader(), parts = [];
+        for (;;){
+          const { done, value } = await reader.read();
+          if (done) break;
+          parts.push(value); got += value.length;
+          const pct = Math.min(99, Math.floor(got / total * 100));
+          if (pct !== shown){ shown = pct; draw("saving", pct); }
+        }
+        blobs.push(new Blob(parts));
+      }
+      const cache = await caches.open(MAP_CACHE);
+      // One map per trip site: a newer cut replaces the old one.
+      for (const k of await cache.keys()) if (!urls.includes(k.url) && k.url !== JSON_URL && k.url !== MAP_LIB) await cache.delete(k);
+      for (let i = 0; i < urls.length; i++)
+        await cache.put(urls[i], new Response(blobs[i], { headers: { "Content-Type": "application/octet-stream", "Content-Length": String(blobs[i].size) } }));
+      // Beside the map, where no app update clears them: what the map is, and
+      // the library that draws it. Without them a saved map went unused.
+      await cache.put(JSON_URL, new Response(JSON.stringify(info), { headers: { "Content-Type": "application/json" } }));
+      try { await cache.put(MAP_LIB, await fetch(MAP_LIB, { mode: "no-cors" })); } catch(e){}
+      // The library that draws it must be on the phone too. It is kept the
+      // first time it is fetched through the service worker — which a very
+      // first visit is not — so fetch it again now, while there is signal.
+      try { await fetch(MAP_LIB, { mode: "no-cors" }); } catch(e){}
+      // Ask the phone not to clear it to make room; it may say no, and that's fine.
+      try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
+      tellWorker();
+      draw("saved");
+    } catch(e){ draw("failed"); }
+  }
+
+  const fromSaved = () => caches.open(MAP_CACHE).then(c => c.match(JSON_URL)).then(r => r ? r.json() : null).catch(() => null);
+  fetch(JSON_URL, { cache: "no-store" })
+    .then(r => r.ok ? r.json() : fromSaved(), fromSaved)
+    .then(async j => {
+      if (!j || !j.file) return;
+      info = j;
+      const abs = f => new URL(window.TRIP_DIR + f, location.href).href;
+      const detailUrl = abs(j.file), overviewUrl = j.overview ? abs(j.overview.file) : null;
+      urls = [detailUrl].concat(overviewUrl ? [overviewUrl] : []);
+      await loadScript(MAP_LIB);
+      if (typeof protomapsL === "undefined") return;
+      // Beneath Leaflet's own tile pane (z-index 200), so Esri's map covers it
+      // whenever it loads.
+      map.createPane("ownMap").style.zIndex = 150;
+      const own = (u, maxz, z) => protomapsL.leafletLayer({ url: u, flavor: "light", lang: "en", maxDataZoom: maxz, pane: "ownMap", zIndex: z,
+        attribution: '&copy; <a href="https://openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors, <a href="https://protomaps.com" target="_blank" rel="noreferrer">Protomaps</a>' });
+      if (overviewUrl) own(overviewUrl, j.overview.maxzoom, 1).addTo(map);
+      const detail = own(detailUrl, j.maxzoom, 2);
+      // The library paints its style's background on every tile it draws,
+      // including the ones where this layer has no data — which covered the
+      // overview beneath with grey between the stops. Without it, those parts
+      // are see-through and the overview shows.
+      if (overviewUrl) detail.backgroundColor = undefined;
+      detail.addTo(map);
+
+      /* With no signal, ours must show. Esri's layer sits on top, and Leaflet
+         keeps a failed tile's zoomed-out parent on screen, stretched — so in
+         airplane mode the map was Esri's old tiles blown up, over ours. Hide
+         Esri's street map once the phone is offline or one of its tiles fails,
+         for the rest of this visit; ours is complete, so nothing is lost. */
+      const street = map.__street;
+      let ownOnly = false;
+      const hideStreet = () => { const c = street && street.getContainer && street.getContainer(); if (c) c.style.visibility = "hidden"; };
+      const useOwn = () => { ownOnly = true; hideStreet(); };
+      if (street) {
+        if (navigator.onLine === false) useOwn();
+        street.on("tileerror", useOwn);
+        street.on("add", () => { if (ownOnly) setTimeout(hideStreet, 0); });
+      }
+      window.addEventListener("offline", useOwn);
+      draw();
+    })
+    .catch(() => {});
+})();
+
+// When the map is manually resized, Leaflet needs telling to re-measure itself and
+// redraw — otherwise the map view stays cropped to its old size.
+if (map && typeof ResizeObserver !== "undefined"){
+  let resizeDebounce;
+  new ResizeObserver(()=>{
+    clearTimeout(resizeDebounce);
+    resizeDebounce = setTimeout(()=>{ try { map.invalidateSize(); } catch(e){} }, 120);
+  }).observe($("map"));
+}
+
+// Custom drag-to-resize handle (desktop only, via the pointer:fine media query on
+// its CSS) — a visible grip glued to the map's actual corner. Since #map centers
+// itself with left:50%+transform (the only way to center a box that can be wider
+// than its container — margin:auto gets clamped to zero by browsers in that case),
+// the handle's position is computed from the map's real rendered position each
+// time, rather than assumed from a fixed offset.
+(function(){
+  const handle = $("mapResizeHandle");
+  const mapEl = $("map");
+  const wrapperEl = $("mapWrapper");
+  if (!map || !handle || !mapEl || !wrapperEl) return;
+  let startX = 0, startY = 0, startWidth = 0, startHeight = 0, dragging = false;
+  const MIN_H = 300, MAX_H = Math.round(window.innerHeight * 0.85);
+  const MIN_W = 300, MAX_W = Math.round(window.innerWidth * 0.95);
+  const HANDLE_SIZE = 30;
+
+  function positionHandle(){
+    const mapRect = mapEl.getBoundingClientRect();
+    const wrapRect = wrapperEl.getBoundingClientRect();
+    handle.style.left = Math.round(mapRect.right - wrapRect.left - HANDLE_SIZE - 6) + "px";
+    handle.style.top = Math.round(mapRect.bottom - wrapRect.top - HANDLE_SIZE - 6) + "px";
+    handle.style.right = "auto";
+    handle.style.bottom = "auto";
+  }
+  window.__positionMapResizeHandle = positionHandle; // exposed so tab-switch code can re-call it
+
+  function onMove(e){
+    if (!dragging) return;
+    const x = e.touches ? e.touches[0].clientX : e.clientX;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    const newHeight = Math.max(MIN_H, Math.min(MAX_H, startHeight + (y - startY)));
+    const newWidth = Math.max(MIN_W, Math.min(MAX_W, startWidth + (x - startX)));
+    mapEl.style.height = newHeight + "px";
+    mapEl.style.width = newWidth + "px";
+    positionHandle();
+    if (e.cancelable) e.preventDefault();
+  }
+  function onUp(){
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.userSelect = "";
+    try { map.invalidateSize(); } catch(e){}
+    positionHandle();
+  }
+  function onDown(e){
+    dragging = true;
+    startX = e.touches ? e.touches[0].clientX : e.clientX;
+    startY = e.touches ? e.touches[0].clientY : e.clientY;
+    const rect = mapEl.getBoundingClientRect();
+    startWidth = rect.width;
+    startHeight = rect.height;
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  }
+  handle.addEventListener("mousedown", onDown);
+  handle.addEventListener("touchstart", onDown, { passive:false });
+  window.addEventListener("mousemove", onMove, { passive:false });
+  window.addEventListener("touchmove", onMove, { passive:false });
+  window.addEventListener("mouseup", onUp);
+  window.addEventListener("touchend", onUp);
+  setTimeout(positionHandle, 100);
+})();
+
+/* --- Trek (optional module) ----------------------------------------------- */
+(function(){
+  const t = TRIP.trek || {};
+  const el = $("trekProgress");
+  if (!t.enabled){ el.innerHTML = ""; return; }
+
+  const trekDays = DAYS.filter(d => d.trekKm != null);
+  const total = t.totalKm || trekDays.reduce((s,d)=>s+d.trekKm, 0);
+  const liveUrl = (TRIP.links||{}).liveTracker || "";
+  // Fixed to the trek's own area, never today's location — otherwise on a
+  // non-trek day this card shows somewhere entirely unrelated to the trek.
+  const mapsUrl = (t.areaLat != null)
+    ? `https://www.google.com/maps/search/?api=1&query=${t.areaLat},${t.areaLng}` : "";
+
+  const buttons = (liveUrl || mapsUrl) ? `<div class="portal-btn-group" style="margin-top:10px;">
+      ${liveUrl ? `<a class="card-btn link portal-btn" style="background:var(--success)" href="${esc(liveUrl)}" target="_blank" rel="noreferrer">${TRIP.keepsake ? "🛰 The route on the satellite tracker" : "🛰 View Live Tracker"} ↗</a>` : ""}
+      ${mapsUrl ? `<a class="card-btn link portal-btn" style="background:#fff;color:var(--primary);border:1.5px solid var(--primary)" href="${esc(mapsUrl)}" target="_blank" rel="noreferrer">📍 Trek area on Google Maps ↗</a>` : ""}
+    </div>${t.noPhoneNote ? `<p class="trek-note" style="border-top:none;padding-top:0;margin-top:6px;">${tokEsc(t.noPhoneNote)}</p>` : ""}` : "";
+
+  const firstTrek = trekDays.length ? trekDays[0].n : Infinity;
+  let km = 0;
+  if (status === "after") km = total;
+  else if (status === "during"){
+    const h = parseInt(new Intl.DateTimeFormat("en-GB",{timeZone:TZ,hour:"2-digit",hour12:false}).format(new Date()),10);
+    const s = t.startHour!=null?t.startHour:8, e = t.endHour!=null?t.endHour:17;
+    trekDays.forEach(d => {
+      if (currentDayNum > d.n) km += d.trekKm;
+      else if (currentDayNum === d.n) km += Math.round(d.trekKm * Math.min(1, Math.max(0, (h-s)/(e-s))));
+    });
+  }
+  km = Math.min(km, total);
+  const pct = total ? Math.round(km/total*100) : 0;
+  const notStarted = status === "before" || currentDayNum < firstTrek;
+
+  el.innerHTML = `<div class="trek-progress">
+      <h4>🥾 ${tokEsc(t.title || "The trek")}</h4>
+      <p class="trek-sub">${notStarted
+        ? `${esc(t.dates||"")} · ${tokEsc(t.blurb||"")} Progress will appear here once the trek starts.`
+        : (km >= total ? `Trek complete — ${P.subj} did it! 🎉${TRIP.keepsake && (t.dates || t.blurb) ? `<br>${esc(t.dates||"")}${t.dates && t.blurb ? " · " : ""}${tokEsc(t.blurb||"")}` : ""}` : `Estimated from the itinerary — ${P.be} earning every step.`)}</p>
+      <div class="trek-track">
+        <div class="trek-fill" style="width:${notStarted?0:pct}%"></div>
+        ${notStarted ? "" : `<div class="trek-boots" style="left:${Math.max(3,Math.min(97,pct))}%">🥾</div>`}
+      </div>
+      <div class="trek-stats"><span>${notStarted?0:km} km</span><span>~${total} km</span></div>
+      ${buttons}
+      ${t.note ? `<p class="trek-note">${tokEsc(t.note)}</p>` : ""}
+    </div>`;
+})();
+
+/* --- Info tab ------------------------------------------------------------- */
+(function(){
+  const L_ = TRIP.links || {};
+
+  // Rendered once, on whichever card is the first to show times.
+  function timeToggle(){
+    const here = timeMode() === "here";
+    const zone = viewerZoneLabel();
+    const where = TRIP.trip.destinationLabel || "there";
+    return `<div class="seg-row"><span>Show times in:</span>
+      <span class="seg" role="group" aria-label="Which timezone to show times in">
+        <button type="button" class="time-mode" data-mode="there" aria-pressed="${!here}">Their time</button>
+        <button type="button" class="time-mode" data-mode="here" aria-pressed="${here}">My time${zone?` (${esc(zone)})`:""}</button>
+      </span>
+      <span style="flex-basis:100%;font-size:calc(12px * var(--fs))">${here
+        ? `Times shown in your own timezone.`
+        : `Times shown local to each place — e.g. ${esc(where)} time, not yours.`}</span></div>`;
+  }
+
+  function flightsCard(){
+    if (!FLIGHTS.length) return "";
+    // A keepsake keeps every flight as the record of the journey. During the
+    // trip only what is still ahead shows, which once it is over is nothing.
+    if (TRIP.keepsake) {
+      const TK = {weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"};
+      return `<div class="info-card"><h4>✈️ The flights</h4>
+        <p class="placeholder" style="margin-bottom:8px;">Each in its own airport's local time.</p>
+        ${FLIGHTS.map(f => `<div class="flight-row done"><div class="flight-info">
+          <div class="flight-main"><b>${esc(f.no)}</b> ${esc(f.from)} → ${esc(f.to)}</div>
+          <div class="flight-times">${f.dep ? "Dep " + fmtAt(f.dep, TK) + " &middot; " : ""}Arr ${fmtAt(f.arr, TK)}</div>
+        </div></div>`).join("")}</div>`;
+    }
+    let prevArr = null;
+    const withStatus = FLIGHTS.map(f => { const st = flightStatus(f, prevArr); prevArr = new Date(f.arr); return {f,st}; });
+    const upcoming = withStatus.filter(x => x.st.cls !== "done");
+    // Which kind of status the rows below are: the airline's data, or the
+    // schedule. Said once, above them, as well as in each label.
+    function liveNote(){
+      if (!LIVE_ON) return "Times and status below are the schedule, not live.";
+      if (!__liveMeta) return "Live status not available yet — times and status below are the schedule.";
+      if (__liveMeta.capReached) return "Live status paused for the rest of the month — times and status below are the schedule.";
+      const t = new Date(__liveMeta.generated).toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
+      return `Live status from the airlines' data, last updated ${t} your time.`;
+    }
+    if (!upcoming.length) return "";
+    const T = {weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"};
+    const rows = upcoming.map(({f,st}) => {
+      // Each leg shown in its own airport's local time, as an airline would.
+      const d = f.dep ? fmtAt(f.dep, T) : "—";
+      const a = fmtAt(f.arr, T);
+      const live = st.cls.split(" ").includes("live");
+      const fr = f.no.replace(/[^A-Za-z0-9]/g,"").toLowerCase();
+      return `<div class="flight-row ${st.cls}" data-flight="${esc(f.no)}">
+        <div class="flight-info">
+          <div class="flight-main"><b>${esc(f.no)}</b> ${esc(f.from)} → ${esc(f.to)}</div>
+          <div class="flight-times">Dep ${d} &middot; Arr ${a}</div>
+          <div class="flight-status">${st.label}</div>
+          <div style="margin-top:6px">${calButton(eventKeyFor("flight", f))}</div>
+        </div>
+        <a href="https://www.flightradar24.com/data/flights/${esc(fr)}" target="_blank" rel="noreferrer"
+           class="card-btn link flight-track-btn ${live?'flight-track-btn-live':''}">${live?'✈️ Track live now':'Track live'} ↗</a>
+      </div>`;
+    }).join("");
+    const done = FLIGHTS.length - upcoming.length;
+    return `<div class="info-card"><h4>✈️ Flights</h4>
+      ${done>0 ? `<p class="placeholder" style="margin-bottom:8px;">${done} of ${FLIGHTS.length} past their scheduled arrival — only showing what's ahead.</p>` : ""}
+      ${timeToggle()}
+      <p class="placeholder" style="margin-bottom:4px;">Tap "Track live" for the real position via Flightradar24.</p>
+      <p id="liveCheckedNote" class="placeholder" style="font-size:calc(12px * var(--fs));margin:0 0 10px;">${liveNote()}</p>
+      ${rows}
+      ${LIVE_ON
+        // Required by the AeroDataBox plan the live status comes from (RapidAPI
+        // BASIC: "Terms of Use: Attribution — required").
+        ? `<p class="placeholder" style="font-size:calc(12px * var(--fs));margin:10px 0 0">Live flight data by <a href="https://aerodatabox.com" target="_blank" rel="noreferrer">AeroDataBox</a></p>` : ""}
+      ${costLine("flights")}${costLine("seats")}</div>`;
+  }
+
+  // Optional module — absent from the Cambodia config entirely, so it simply
+  // never renders there.
+  // Today's date on the trip's clock, not the viewer's. Someone checking in
+  // from the UK at 1am sees the same day the family is actually living.
+  function tripToday(){
+    return destToday();
+  }
+
+  // Stays behave like the itinerary, eating and considering lists: once you've
+  // checked out, a stay stops being something you need and becomes clutter
+  // above the one you're actually in. Kept in date order rather than sorted by
+  // relevance — accommodation is a sequence, and seeing it out of order would
+  // be worse than scrolling.
+  //
+  // "Past" is `today > to`, not `>= to`: on checkout morning you still want the
+  // address and the 11am deadline in front of you.
+/* Who is reading this?
+
+   On the Texas trip the readers were the people travelling: "Directions" meant
+   drive here, the link was their own booking, and the phone number was the desk
+   they would ring on arrival. On an expedition the readers are at home, and
+   every one of those is wrong — nobody in Guildford is driving to a lodge on
+   the Kinabatangan, and there is no booking in their name.
+
+   The phone number is the one that matters. These apps carry a contacts section
+   naming who to ring and in what order, precisely so a worried parent does not
+   improvise. A lodge's direct line sitting beside the bed invites exactly the
+   call that section exists to prevent — at three in the morning, local time, to
+   somebody with no idea who is asking.
+
+   `trip.audience: "at-home"` switches the labels and drops the number. Absent
+   means travelling, so every existing config is unchanged. */
+  const AT_HOME = (TRIP.trip || {}).audience === "at-home";
+
+  // One night's — or one week's — accommodation. `now` means the trip is
+  // inside this stay's window today; see SECTIONS for who decides that.
+  function stayRow(s, now){
+    const f = new Date(s.from+"T12:00:00Z"), t = new Date(s.to+"T12:00:00Z");
+    const fmt = d => d.toLocaleDateString("en-GB",{day:"numeric",month:"short",timeZone:"UTC"});
+    return `<div class="stay ${now?'current':''}">
+        <div class="stay-when">${fmt(f)} – ${fmt(t)}${now?" · here now":""}</div>
+        <div class="stay-name">${esc(s.name)}${s.area?` <span style="font-weight:400;color:var(--text-muted)">· ${esc(s.area)}</span>`:""}</div>
+        ${s.address?`<div class="stay-note">${esc(s.address)}</div>`:""}
+        ${s.note?`<div class="stay-note">${esc(s.note)}</div>`:""}
+        ${s.ref?`<div class="stay-note">Booking ref: <b>${esc(s.ref)}</b></div>`:""}
+        ${costLine(s.name)}
+        ${linkRow([
+          s.satNav  && [AT_HOME ? "📍 Where this is" : "🧭 Directions", s.satNav],
+          s.link    && ["🔗 " + (s.linkLabel || (AT_HOME ? "Website" : "Booking")), s.link],
+          s.appLink && ["📱 Open " + (s.appName || "app"), s.appLink, s.appName],
+          !AT_HOME && s.phone && ["📞 " + s.phone, "tel:" + String(s.phone).replace(/[^\d+]/g,"")],
+        ])}
+      </div>`;
+  }
+
+  // Own host element so the toggle can redraw just this card, rather than
+  // rebuilding the whole Info tab and throwing you back to the top of it.
+  function stayCard(){ return `<div id="stayHost"></div>`; }
+
+  // Small row of tappable chips. Skips anything not supplied, and renders
+  // nothing at all if none are — so a stay with no links looks the same as before.
+  // App-scheme attempt for "Open {app}" buttons — see APP_SCHEMES up top for why.
+  function openApp(e, scheme){
+    e.preventDefault();
+    const href = e.currentTarget.href;
+    const start = Date.now();
+    let backgrounded = false;
+    const onHide = () => { if (document.hidden) backgrounded = true; };
+    document.addEventListener("visibilitychange", onHide);
+    window.location.href = scheme;
+    setTimeout(() => {
+      document.removeEventListener("visibilitychange", onHide);
+      // If the tab never went to the background, nothing intercepted the
+      // scheme — the app isn't installed, or doesn't own it. Also skip the
+      // fallback if this fired long after the tap (e.g. a system dialog like
+      // "Cannot Open Page" was on screen), since that usually means the app
+      // browser is about to return control on its own.
+      if (!backgrounded && Date.now() - start < 2500) window.open(href, "_blank");
+    }, 1200);
+  }
+
+  function linkRow(pairs){
+    const live = (pairs||[]).filter(Boolean);
+    if (!live.length) return "";
+    return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">` +
+      live.map(([label, href, appName]) => {
+        const scheme = appName && APP_SCHEMES[appName.toLowerCase()];
+        return `<a href="${esc(tripFile(href))}" target="_blank" rel="noreferrer"
+            ${scheme ? `onclick="openApp(event, '${esc(scheme)}')"` : ""}
+            style="font-size:calc(13px * var(--fs));font-weight:600;text-decoration:none;color:var(--primary);
+                   border:1.5px solid var(--border-strong);background:#fff;border-radius:16px;
+                   padding:5px 10px;white-space:nowrap">${esc(label)}</a>`;
+      }).join("") +
+      `</div>`;
+  }
+
+  /* --- MODULE: Bookings ---------------------------------------------------
+     Everything that isn't accommodation or the hire car — flights, event
+     tickets, activities. Optional: no `bookings` key, no card.
+
+     A family trip wants all of this in one place; a school expedition doesn't
+     have it at all, which is why it's a module rather than a fixed section. */
+  /* --- MODULE: Costs ------------------------------------------------------
+     Splits are shown as the trip happens, so people can settle up on the day
+     rather than reconstructing it all afterwards. The app only ever displays
+     what's owed and links out to a payment app — it never handles money. */
+  const COSTS = window.TRIP_COSTS || null;
+
+  function costMoney(n, sym){
+    if (sym == null) sym = (COSTS && COSTS.currencySymbol) || "";
+    return sym + n.toLocaleString("en-GB", {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  // What people are actually asked for. The payer was charged in their own
+  // currency at their card's rate, so settling in the trip's currency would
+  // leave them short on the conversion back — everything owed is therefore
+  // expressed in homeCurrency. `charged` (off the statement) wins when known;
+  // otherwise convert at `rate` and mark it an estimate.
+  const homeSym = (COSTS && COSTS.homeCurrencySymbol) || (COSTS && COSTS.currencySymbol) || "";
+  function costHome(item){
+    if (!COSTS) return null;
+    if (item.charged != null) return { total: item.charged, estimated: false };
+    if (item.amount == null) return null;
+    if (COSTS.homeCurrency && COSTS.rate) return { total: item.amount * COSTS.rate, estimated: true };
+    return { total: item.amount, estimated: false };   // single-currency trip
+  }
+  function costHomeMoney(n){ return costMoney(n, homeSym); }
+
+  // Who shares an item, defaulting to everyone.
+  function costSharers(item){
+    const all = (COSTS && COSTS.people) || [];
+    return (Array.isArray(item.split) && item.split.length) ? item.split : all;
+  }
+
+  function costItemFor(what){
+    if (!COSTS || !Array.isArray(COSTS.items)) return null;
+    return COSTS.items.find(i => i.what === what) || null;
+  }
+
+  // One line under a booking/stay/car: the per-head figure at the moment it matters.
+  function costLine(what){
+    const item = costItemFor(what);
+    if (!item) return "";
+    const home = costHome(item);
+    if (!home) {
+      return `<div class="stay-note" style="color:var(--text-muted)">💷 Cost not filled in yet${item.paidBy?` · paid by ${esc(item.paidBy)}`:""}</div>`;
+    }
+    const sharers = costSharers(item);
+    if (!sharers.length) return "";
+    const each = home.total / sharers.length;
+    // Only worth showing the ticket price when it's a different currency AND
+    // we actually have it — items priced straight in GBP have no `amount`.
+    const ticket = (item.amount != null && COSTS.homeCurrency && COSTS.homeCurrency !== COSTS.currency)
+      ? ` (${costMoney(item.amount)})` : "";
+    return `<div class="stay-note"><b>💷 ${home.estimated?"≈":""}${esc(costHomeMoney(each))} each</b>
+      <span style="color:var(--text-muted)">· ${esc(costHomeMoney(home.total))}${esc(ticket)} split ${sharers.length} ways${item.paidBy?`, paid by ${esc(item.paidBy)}`:""}</span>
+      ${home.estimated?`<span style="color:var(--text-muted)"> · estimated until the statement lands</span>`:""}</div>`;
+  }
+
+  // Running total of what each person owes each payer across the whole trip.
+  // Everything here is in homeCurrency. `estimated` rides along so the summary
+  // can say which totals are still provisional.
+  function costTotals(){
+    const owed = {};
+    (COSTS.items || []).forEach(item => {
+      if (!item.paidBy) return;
+      const home = costHome(item);
+      if (!home) return;
+      const sharers = costSharers(item);
+      if (!sharers.length) return;
+      const each = home.total / sharers.length;
+      sharers.forEach(p => {
+        if (p === item.paidBy) return;
+        owed[p] = owed[p] || {};
+        const cur = owed[p][item.paidBy] || { total:0, estimated:false };
+        cur.total += each;
+        cur.estimated = cur.estimated || home.estimated;
+        owed[p][item.paidBy] = cur;
+      });
+    });
+    return owed;
+  }
+
+  function costsCard(){
+    if (!COSTS || !Array.isArray(COSTS.items) || !COSTS.items.length) return "";
+    const priced  = COSTS.items.filter(i => costHome(i));
+    const missing = COSTS.items.filter(i => !costHome(i));
+    const anyEst  = priced.some(i => costHome(i).estimated);
+    const owed    = costTotals();
+    const settle  = COSTS.settleUp || {};
+
+    const people = (COSTS.people || []).map(p => {
+      const to = owed[p];
+      if (!to) return `<div class="stay"><div class="stay-name">${esc(p)}</div>
+        <div class="stay-note" style="color:var(--text-muted)">Nothing outstanding.</div></div>`;
+      const lines = Object.keys(to).map(payer =>
+        `<div class="stay-note">Owes <b>${to[payer].estimated?"≈":""}${esc(costHomeMoney(to[payer].total))}</b> to ${esc(payer)}</div>`).join("");
+      return `<div class="stay"><div class="stay-name">${esc(p)}</div>${lines}
+        ${settle.link?linkRow([["💷 " + (settle.label || "Settle up"), settle.link]]):""}</div>`;
+    }).join("");
+
+    const total = priced.reduce((s,i) => s + costHome(i).total, 0);
+    const diffCur = COSTS.homeCurrency && COSTS.homeCurrency !== COSTS.currency;
+
+    return `<div class="info-card"><h4>💷 Costs &amp; settling up</h4>
+      <p class="placeholder" style="margin-bottom:10px">
+        ${priced.length} item${priced.length===1?"":"s"} totalling <b>${anyEst?"≈":""}${esc(costHomeMoney(total))}</b>${missing.length?` · ${missing.length} still to be filled in`:""}.
+        Splits show on each booking as you go.</p>
+      ${diffCur?`<p class="placeholder" style="margin-bottom:10px;font-size:calc(13px * var(--fs))">
+        Everything is settled in ${esc(COSTS.homeCurrency)} — the payer's card converted from ${esc(COSTS.currency)} at its own rate, so repaying in ${esc(COSTS.currency)} would leave them short.${anyEst?` Figures marked ≈ are converted at ${esc(String(COSTS.rate))} and firm up once the statement lands.`:""}</p>`:""}
+      ${people}
+      ${settle.link?"":`<p class="placeholder" style="margin-top:10px;font-size:calc(13px * var(--fs))">${esc(settle.note || "Add a payment link in the costs file to make these tappable.")}</p>`}
+      </div>`;
+  }
+
+  const fmtBookingDate = d => d ? new Date(d+"T12:00:00Z").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",timeZone:"UTC"}) : null;
+
+  // Bookings are read in date order, so render them that way rather than
+  // trusting the order they happen to sit in the config — dates get added and
+  // corrected over time and the file drifts out of sequence. Undated ones
+  // (nothing pencilled in yet) fall to the end, keeping their config order
+  // among themselves since sort is stable.
+  function sortBookings(list){
+    return list.slice().sort((a, b) => {
+      if (a.when && b.when) return a.when < b.when ? -1 : a.when > b.when ? 1 : 0;
+      if (a.when) return -1;
+      if (b.when) return 1;
+      return 0;
+    });
+  }
+
+  function bookingRow(b, here){
+    return `<div class="stay ${b.done?'been ':''}${here?'current':''}">
+        ${b.when ? `<div class="stay-when">${esc(fmtBookingDate(b.when))}${b.time?` · ${esc(b.time)}`:""}</div>`
+                 : here ? `<div class="stay-when">near you now</div>` : ""}
+        <div class="stay-name">${esc(b.what || "Booking")}${b.provider?` <span style="font-weight:400;color:var(--text-muted)">· ${esc(b.provider)}</span>`:""}${b.done?doneChip:""}</div>
+        ${b.address?`<div class="stay-note">${esc(b.address)}</div>`:""}
+        ${b.beThereBy?`<div class="stay-note" style="font-weight:600;color:var(--alert)">⏰ ${esc(b.beThereBy)}</div>`:""}
+        ${b.note?`<div class="stay-note">${esc(b.note)}</div>`:""}
+        ${b.ref?`<div class="stay-note">Ref: <b>${esc(b.ref)}</b></div>`:""}
+        ${costLine(b.what)}
+        ${linkRow([
+          b.satNav  && ["🧭 Directions", b.satNav],
+          b.link    && ["🔗 " + (b.linkLabel || "Booking"), b.link],
+          b.appLink && ["📱 Open " + (b.appName || "app"), b.appLink, b.appName],
+          b.phone   && ["📞 " + b.phone, "tel:" + String(b.phone).replace(/[^\d+]/g,"")],
+        ])}
+        ${b.when && !b.done ? `<div style="margin-top:6px">${calButton(eventKeyFor("booking", b))}</div>` : ""}
+      </div>`;
+  }
+
+  // Kept in date order rather than sorted by relevance, same reasoning as the
+  // stays: bookings are a sequence, and shuffling today's to the top would read
+  // as wrong. Done ones drop behind a toggle instead.
+  //
+  // "Past" is `today > when`, so a booking stays put all the day it happens —
+  // you want the seat numbers and the be-there-by time in front of you on the
+  // day, not filed away that morning. Undated entries never expire.
+  //
+  // The `here` flag is computed here, not passed straight into .map(): map's
+  // callback signature is (element, index, array), so `list.map(bookingRow)`
+  // silently fed the array index into bookingRow's second parameter — index 0
+  // is falsy and everything else truthy, which made the green highlight mean
+  // "not first in the list" rather than "today".
+  /* --- MODULE: Eating -----------------------------------------------------
+     Somewhere to eat, kept apart from `bookings` because nothing here is
+     booked — these are picks to choose between when the question is "where
+     are we eating tonight". Optional: no `eating` key, no card. */
+  // Each entry carries the window of days it's any use — `from`/`to`, keyed to
+  // where the trip actually is. Somewhere in Fort Worth is noise once you're in
+  // Houston, so once its window has passed it drops off, the same way earlier
+  // days drop off the itinerary. Nothing is deleted: a toggle brings them back.
+  /* A `done:true` entry is one you actually went to. It earns a tick, and it
+     stops competing for attention: `done` counts as past, so it drops out of
+     the live list even while its date window is still open — otherwise the
+     Katy Buc-ee's would still be offering itself two days after you'd been.
+
+     Once the trip is over and every section opens up, the tick is what
+     separates "we did this" from "we looked at it and didn't", which is the
+     more interesting half of a finished trip. */
+  const doneChip = `<span style="display:inline-block;font-size:calc(11.5px * var(--fs));font-weight:600;letter-spacing:.02em;
+      color:var(--success);background:var(--bg);border:1px solid var(--success);border-radius:10px;
+      padding:1px 7px;margin-left:6px;vertical-align:1px">✓ been</span>`;
+
+  /* What order the opened-up list runs in, which depends entirely on what the
+     list is FOR at that moment.
+
+     During the trip it is a set of options: things still worth doing come
+     first, things you've passed sink to the bottom. A place you have already
+     been is noise when the question is where to go tonight.
+
+     Once the trip is over the same list stops being options and becomes a
+     record, and the interesting half inverts — what was actually done is the
+     bit worth reading, and what was never taken up is the footnote. So `done`
+     entries rise to the top, in the order they were ranked.
+
+     Note this keys off `done` rather than `past`: "we went" and "the date has
+     been and gone" are different claims, and only the first is a memory. */
+  function pastOrder(ranked, live, gone){
+    if (status !== "after") return live.concat(gone);
+    return ranked.filter(r =>  r.it.done)
+           .concat(ranked.filter(r => !r.it.done));
+  }
+
+  function eatingRow(e, here){
+    return `<div class="stay ${e.done?'been ':''}${here?'current':''}">
+        ${here?`<div class="stay-when">near you now</div>`:""}
+        <div class="stay-name">${esc(e.what || "")}${e.area?` <span style="font-weight:400;color:var(--text-muted)">· ${esc(e.area)}</span>`:""}${e.price?` <span style="font-weight:600;color:var(--success)">${esc(e.price)}</span>`:""}
+          ${e.kind?`<span style="display:inline-block;font-size:calc(11.5px * var(--fs));font-weight:600;letter-spacing:.02em;color:var(--primary);background:var(--bg);border:1px solid var(--border-strong);border-radius:10px;padding:1px 7px;margin-left:6px;vertical-align:1px">${esc(e.kind)}</span>`:""}${e.done?doneChip:""}</div>
+        ${e.address?`<div class="stay-note">${esc(e.address)}</div>`:""}
+        ${e.note?`<div class="stay-note">${esc(e.note)}</div>`:""}
+        ${linkRow([
+          e.satNav && ["🧭 Directions", e.satNav],
+          e.link   && ["🔗 Website",    e.link],
+          e.phone  && ["📞 " + e.phone, "tel:" + String(e.phone).replace(/[^\d+]/g,"")],
+        ])}
+      </div>`;
+  }
+
+  /* --- MODULE: Road stops -------------------------------------------------
+     Things you stop at because you're already driving past, as opposed to
+     places you set out for. Kept apart from `eating` and from `considering`
+     because mixing them buries both: a Buc-ee's is noise in a list of
+     restaurants you're choosing between, and a five-minute leg-stretch reads
+     as an outing when it sits next to a zoo.
+
+     Same shape as the eating list — `from`/`to` windows, whatever's near you
+     first, passed ones behind a toggle. Optional: no `roadStops` key, no tab. */
+
+  /* --- Every list section, described rather than written out --------------
+     Stays, bookings, being-considered, on-the-way and where-to-eat were five
+     functions doing the same four things: work out what is behind you and
+     what is reachable today, order those two groups, put the passed ones
+     behind a toggle, and render rows under a heading. Five copies meant five
+     places to edit and five chances to let them drift — which had already
+     happened twice, in the `done` handling and the toggle wording.
+
+     So the differences live here as data, and the machinery lives once in
+     sectionCard() below. A new list is an entry in this table.
+
+       items     where the entries come from, read fresh each render
+       order     "given"   take the list as it arrives (already in date order)
+                 "nearest" float whatever is reachable today to the top, then
+                           by start date, then config order
+       past      what counts as behind you — a checkout date, an event date,
+                 or a `done` flag
+       here      what counts as reachable right now; earns the green highlight
+       opened    what the list looks like with the passed ones showing:
+                 "given" leaves them where they fall, "sink" drops them to the
+                 bottom (and, once the trip is over, floats `done` to the top —
+                 see pastOrder)
+       row       how one entry renders
+       passed    toggle wording, given how many have gone
+       intro     optional line under the heading
+       empty     what to say when nothing is left
+  ------------------------------------------------------------------------ */
+  const SECTIONS = {
+    stays: {
+      host: "stayHost", toggleId: "stayPastToggle",
+      heading: "🛏 Where everyone's staying",
+      items: () => TRIP.accommodation,
+      // Already written in date order, and a stay list reads as a sequence:
+      // pulling checked-out ones to the bottom would scramble the dates.
+      order: "given", opened: "given",
+      past: (s, today) => !!(s.to && today > s.to),
+      here: (s, today) => today >= s.from && today < s.to,
+      passed: n => `${n} already checked out of`,
+      row: stayRow,
+    },
+
+    bookings: {
+      host: "bookingsCards", toggleId: "bookingsPastToggle",
+      heading: "🎟 Bookings &amp; reservations",
+      items: () => sortBookings((TRIP.bookings || []).filter(b => !b.considering)),
+      // sortBookings has already put these in date order, and a record of what
+      // was booked reads correctly that way whether or not it has happened.
+      order: "given", opened: "given",
+      past: (b, today) => !!(b.when && today > b.when),
+      here: (b, today) => b.when === today,
+      passed: n => `${n} already done`,
+      empty: "Nothing left to turn up to.",
+      row: bookingRow,
+    },
+
+    considering: {
+      host: "consideringCards", toggleId: "consideringPastToggle",
+      heading: "🤔 Being considered",
+      items: () => (TRIP.bookings || []).filter(b => b.considering),
+      order: "nearest", opened: "sink",
+      past: (b, today) => !!(b.done || (b.to && today > b.to)),
+      here: (b, today) => !!(b.from && b.to && today >= b.from && today <= b.to),
+      passed: n => `${n} you've passed`,
+      intro: () => `<p class="placeholder" style="margin-bottom:10px">Nothing here is booked — options for when a day needs filling.</p>`,
+      empty: "Nothing left within reach.",
+      row: bookingRow,
+    },
+
+    roadStops: {
+      host: "roadStopCards", toggleId: "roadStopPastToggle",
+      heading: "🛣 On the way",
+      items: () => TRIP.roadStops,
+      order: "nearest", opened: "sink",
+      past: (e, today) => !!(e.done || (e.to && today > e.to)),
+      here: (e, today) => !!(e.from && e.to && today >= e.from && today <= e.to),
+      passed: n => `${n} you've passed`,
+      intro: () => TRIP.roadStopsNote
+        ? `<p class="placeholder" style="margin-bottom:10px">${tokEsc(TRIP.roadStopsNote)}</p>` : "",
+      empty: "Nothing left on the route.",
+      row: eatingRow,
+    },
+
+    eating: {
+      host: "eatingCards", toggleId: "eatingPastToggle",
+      heading: "🍖 Where to eat",
+      items: () => TRIP.eating,
+      order: "nearest", opened: "sink",
+      // Undated entries never expire — they just sort last among the live ones.
+      past: (e, today) => !!(e.done || (e.to && today > e.to)),
+      here: (e, today) => !!(e.from && e.to && today >= e.from && today <= e.to),
+      // "places" rather than a bare count, because this list is long enough
+      // that the number alone reads as a date. The Show and Hide halves used
+      // to disagree on this — one of the drifts that prompted the table.
+      passed: n => `${n} place${n > 1 ? "s" : ""} you've passed`,
+      intro: () => TRIP.eatingNote
+        ? `<p class="placeholder" style="margin-bottom:10px">${tokEsc(TRIP.eatingNote)}</p>` : "",
+      empty: "Nothing left on the list.",
+      row: eatingRow,
+    },
+  };
+
+  // The machinery, once. `showPast` is the toggle's state, not a property of
+  // the section — it belongs to the render below.
+  function sectionCard(spec, showPast){
+    const list = spec.items();
+    if (!Array.isArray(list) || !list.length) return "";
+    const today = tripToday();
+
+    const ranked = list.map((it, i) => ({
+      it, i,
+      past: !!spec.past(it, today),
+      here: !!spec.here(it, today),
+    }));
+
+    if (spec.order === "nearest") ranked.sort((a, b) => {
+      if (a.here !== b.here) return a.here ? -1 : 1;      // where you are, first
+      const af = a.it.from || "9999", bf = b.it.from || "9999";
+      if (af !== bf) return af < bf ? -1 : 1;             // then in trip order
+      return a.i - b.i;                                   // then config order
+    });
+
+    const live  = ranked.filter(r => !r.past);
+    const gone  = ranked.filter(r =>  r.past);
+    const shown = !showPast ? live
+                : spec.opened === "sink" ? pastOrder(ranked, live, gone)
+                : ranked;
+
+    const toggle = gone.length
+      ? `<button class="past-days-toggle" id="${spec.toggleId}">${
+          showPast ? "▾ Hide " : "▸ Show "}${spec.passed(gone.length)}</button>`
+      : "";
+
+    return `<div class="info-card"><h4>${spec.heading}</h4>
+      ${spec.intro ? spec.intro() : ""}
+      ${toggle}
+      ${shown.map(r => spec.row(r.it, r.here)).join("")}
+      ${!shown.length && spec.empty ? `<p class="placeholder">${spec.empty}</p>` : ""}</div>`;
+  }
+
+  /* Each section owns its host element so a toggle redraws just that card,
+     rather than rebuilding the whole tab and throwing you back to the top of
+     it. Re-binding on every draw is deliberate: the button is replaced by the
+     innerHTML write, so the old listener goes with it. */
+  function renderSection(name, showPast){
+    const spec = SECTIONS[name];
+    const el = $(spec.host);
+    if (!el) return;
+    el.innerHTML = sectionCard(spec, showPast);
+    const btn = $(spec.toggleId);
+    if (btn) btn.addEventListener("click", () => renderSection(name, !showPast));
+  }
+
+  function carCard(){
+    const c = TRIP.carHire;
+    if (!c || !c.pickUp) return "";
+    const f = d => fmtAt(d, {weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+    return `<div class="info-card"><h4>🚗 Car hire</h4>
+      ${FLIGHTS.length ? "" : timeToggle()}
+      ${c.vehicle?`<p style="margin-bottom:8px">${esc(c.vehicle)}</p>`:""}
+      <div class="stay"><div class="stay-when">Pick up · ${f(c.pickUp.when)}</div>
+        <div class="stay-name">${esc(c.pickUp.at)}</div>
+        ${c.pickUp.address?`<div class="stay-note">${esc(c.pickUp.address)}</div>`:""}
+        ${linkRow([c.pickUp.satNav && ["🧭 Directions", c.pickUp.satNav]])}</div>
+      <div class="stay"><div class="stay-when">Drop off · ${f(c.dropOff.when)}</div>
+        <div class="stay-name">${esc(c.dropOff.at)}</div>
+        ${c.dropOff.address?`<div class="stay-note">${esc(c.dropOff.address)}</div>`:""}
+        ${linkRow([c.dropOff.satNav && ["🧭 Directions", c.dropOff.satNav]])}</div>
+      ${c.ref?`<p class="placeholder" style="font-size:calc(13px * var(--fs));margin:10px 0 0">Booking ref: <b>${esc(c.ref)}</b></p>`:""}
+      ${costLine("carHire")}
+      ${linkRow([
+        c.appLink  && ["📱 Open " + (c.appName  || "app"), c.appLink,  c.appName],
+        c.appLink2 && ["📱 Open " + (c.appName2 || "app"), c.appLink2, c.appName2],
+      ])}
+      ${c.note?`<p class="placeholder" style="font-size:calc(13px * var(--fs));margin:10px 0 0">${esc(c.note)}</p>`:""}</div>`;
+  }
+
+  function beforeCard(){
+    const items = TRIP.beforeYouGo;
+    if (status !== "before" || !Array.isArray(items) || !items.length) return "";
+    return `<div class="info-card"><h4>✅ Before you go</h4>
+      <ul style="margin:0 0 4px;padding-left:20px;font-size:calc(15px * var(--fs));line-height:1.7;color:var(--text-body)">
+      ${items.map(i => `<li>${tok(i)}</li>`).join("")}</ul>
+      ${TRIP.beforeYouGoNote?`<p class="placeholder" style="margin-top:8px">${tokEsc(TRIP.beforeYouGoNote)}</p>`:""}</div>`;
+  }
+
+  /* Contacts and links come from the published config and nothing else.
+     They used to be editable in-app when `editable` was true, saving to that
+     phone only — and the saved copy then won over the config for good, even
+     after editing was switched off and the button had gone. A relative who
+     tidied the emergency numbers once would never see a correction published
+     after it. Anything a phone saved that way is cleared here, once. */
+  ["tracker-url", "photos-url", "contacts"].forEach(k => {
+    try { localStorage.removeItem(storeKey(k)); } catch(e){}
+  });
+
+  function linksCard(){
+    if (TRIP.keepsake) {
+      const route = L_.liveTracker || "";
+      if (!route || (TRIP.trek && TRIP.trek.enabled)) return "";
+      return `<div class="info-card"><h4>🛰 The route</h4>
+        <a class="card-btn link" href="${esc(route)}" target="_blank" rel="noreferrer">The route on the satellite tracker ↗</a></div>`;
+    }
+    const live = L_.liveTracker || "";
+    const any = live || L_.trackerPage || L_.messageBoard;
+    if (!any) return "";
+    const todayMap = currentDay && currentDay.lat != null
+      ? `https://www.google.com/maps/search/?api=1&query=${currentDay.lat},${currentDay.lng}` : "";
+    return `<div class="info-card"><h4>🛰 Links</h4>
+      ${L_.portalNote?`<p class="placeholder" style="margin-bottom:10px">${tokEsc(L_.portalNote)}</p>`:""}
+      <div class="portal-btn-group">
+        ${live?`<a class="card-btn link portal-btn" style="background:var(--success)" href="${esc(live)}" target="_blank" rel="noreferrer">🛰 View Live Tracker ↗</a>`:""}
+        ${todayMap?`<a class="card-btn link portal-btn" style="background:#fff;color:var(--primary);border:1.5px solid var(--primary)" href="${esc(todayMap)}" target="_blank" rel="noreferrer">📍 Today's area on Google Maps ↗</a>`:""}
+        ${L_.trackerPage?`<a class="card-btn link portal-btn" href="${esc(L_.trackerPage)}" target="_blank" rel="noreferrer">Tracker portal page ↗</a>`:""}
+        ${L_.messageBoard?`<a class="card-btn link portal-btn" style="background:var(--warning)" href="${esc(L_.messageBoard)}" target="_blank" rel="noreferrer">💬 Message Board ↗</a>`:""}
+      </div>
+      ${L_.trackerNote?`<p class="placeholder" style="margin:12px 0 8px">${tokEsc(L_.trackerNote)}</p>`:""}</div>`;
+  }
+
+  /* The trip's own photos: trips/<name>/gallery/, made by scripts/make-gallery.js
+     and kept on the server beside the trip. Held here, not on a photo service,
+     so they sit behind the same password as the rest of the app. If a trip has
+     none, gallery.json does not exist and nothing shows. */
+  let GALLERY = null;
+  const GAL_DIR = (window.TRIP_DIR || "") + "gallery/";
+  fetch(GAL_DIR + "gallery.json", { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(j => {
+      if (!(j && j.photos && j.photos.length)) return;
+      GALLERY = window.TRIP_GALLERY = j.photos;
+      render();
+      document.dispatchEvent(new Event("gallery-ready"));   // the map's photo pins
+    })
+    .catch(() => {});
+
+  function galleryCard(){
+    if (!GALLERY) return "";
+    const first = GALLERY.slice(0, 6);
+    return `<div class="info-card"><h4>📷 Photos</h4>
+      <div class="gal-strip">${first.map((p, i) => `<button type="button" class="gal-th" data-gal="${i}"><img src="${esc(GAL_DIR + "t/" + p.f)}" alt="" loading="lazy"></button>`).join("")}</div>
+      ${L_.photosNote?`<p class="placeholder">${tokEsc(L_.photosNote)}</p>`:""}
+      <button type="button" class="card-btn" data-gal="0">See all ${GALLERY.length} photos</button>
+      ${L_.photos?` <a class="card-btn link secondary" href="${esc(L_.photos)}" target="_blank" rel="noreferrer">Open ${esc(L_.photosLabel||"album")} ↗</a>`:""}</div>`;
+  }
+
+  function openGallery(start){
+    if (!GALLERY) return;
+    let cur = -1;
+    const o = document.createElement("div");
+    o.className = "gal-over";
+    o.innerHTML = `<div class="gal-bar"><b>📷 ${GALLERY.length} photos</b><button type="button" class="gal-x" aria-label="Close">✕</button></div>
+      <div class="gal-grid">${GALLERY.map((p, i) => `<button type="button" class="gal-cell" data-i="${i}"><img src="${esc(GAL_DIR + "t/" + p.f)}" alt="" loading="lazy"></button>`).join("")}</div>
+      <div class="gal-big" hidden><button type="button" class="gal-x" aria-label="Back to all photos">✕</button>
+        <button type="button" class="gal-nav prev" aria-label="Previous">‹</button><img alt="">
+        <button type="button" class="gal-nav next" aria-label="Next">›</button>
+        <div class="gal-cap"><span></span><a download>Save</a></div></div>`;
+    document.body.appendChild(o);
+    document.body.style.overflow = "hidden";
+    const big = o.querySelector(".gal-big"), img = big.querySelector("img"), cap = big.querySelector(".gal-cap span"), dl = big.querySelector("a");
+    const show = i => {
+      cur = (i + GALLERY.length) % GALLERY.length;
+      const p = GALLERY[cur];
+      img.src = GAL_DIR + p.f;
+      dl.href = GAL_DIR + p.f; dl.download = (TRIP.trip.title || "photo").replace(/[^\w-]+/g, "-") + "-" + p.f;
+      const d = new Date(p.taken);
+      cap.textContent = (isNaN(d) ? "" : d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "long" }) + " · ") + (cur + 1) + " of " + GALLERY.length;
+      big.hidden = false;
+      // The next one is fetched ahead so swiping is not a wait.
+      const nx = new Image(); nx.src = GAL_DIR + GALLERY[(cur + 1) % GALLERY.length].f;
+    };
+    const close = () => { document.removeEventListener("keydown", key); document.body.style.overflow = ""; o.remove(); };
+    const key = e => {
+      if (e.key === "Escape") { big.hidden ? close() : (big.hidden = true); }
+      else if (!big.hidden && e.key === "ArrowRight") show(cur + 1);
+      else if (!big.hidden && e.key === "ArrowLeft") show(cur - 1);
+    };
+    document.addEventListener("keydown", key);
+    o.addEventListener("click", e => {
+      const t = e.target.closest("button"); if (!t) return;
+      if (t.classList.contains("gal-cell")) show(+t.dataset.i);
+      else if (t.classList.contains("next")) show(cur + 1);
+      else if (t.classList.contains("prev")) show(cur - 1);
+      else if (t.classList.contains("gal-x")) { big.contains(t) ? (big.hidden = true) : close(); }
+    });
+    let x0 = null;
+    big.addEventListener("touchstart", e => { x0 = e.touches[0].clientX; }, { passive: true });
+    big.addEventListener("touchend", e => {
+      if (x0 == null) return;
+      const dx = e.changedTouches[0].clientX - x0; x0 = null;
+      if (Math.abs(dx) > 50) show(cur + (dx < 0 ? 1 : -1));
+    });
+    if (start != null && start >= 0) show(start);
+  }
+  window.openGallery = openGallery;
+
+  function photosCard(){
+    const url = L_.photos || "";
+    if (!url || GALLERY) return "";     // with the trip's own photos, the link is in that card
+    return `<div class="info-card"><h4>📷 Photos</h4>
+      ${L_.photosNote?`<p class="placeholder">${tokEsc(L_.photosNote)}</p>`:""}
+      <a class="card-btn link" href="${esc(url)}" target="_blank" rel="noreferrer">Open ${esc(L_.photosLabel||"album")} ↗</a></div>`;
+  }
+
+  function contactsCard(){
+    const txt = TRIP.contacts || "";
+    if (!txt) return "";
+    return `<div class="info-card"><h4>🆘 Emergency &amp; key contacts</h4>
+      <p>${tokEsc(txt)}</p></div>`;
+  }
+
+  function whoCard(){
+    if (!TRIP.editable) return "";
+    return `<div class="info-card"><h4>⚙️ Whose trip is this?</h4>
+      <p class="placeholder">Currently set up for ${esc(NAME)} (${esc(PKEY)}).</p>
+      <button type="button" class="ghost-btn" id="editWho">Change name / pronouns</button></div>`;
+  }
+
+  function render(){
+    // Bookings moved to their own tab — with flights, six stays, the car and
+    // fifteen reservations, the Info tab had become a scroll rather than a
+    // reference. Info keeps where you're sleeping and how you're travelling;
+    // Bookings keeps what you've paid for and need to turn up to.
+    $("infoCards").innerHTML = (TRIP.keepsake ? galleryCard() : "") + whoCard() + beforeCard() + flightsCard() + calendarCard() + stayCard() + carCard()
+                             + costsCard() + linksCard() + (TRIP.keepsake ? "" : galleryCard()) + photosCard() + contactsCard();
+    // Hiding what's done is right while the trip is running — it keeps the
+    // lists to what's still ahead of you. Once it's over, every window has
+    // passed, so the same rule empties every section and the app becomes five
+    // cards saying "nothing left" on the day it turns into the record of the
+    // trip. After the last day, open them all instead.
+    const done = status === "after";
+    Object.keys(SECTIONS).forEach(name => renderSection(name, done));
+    bind();
+    updateLiveFlights();
+  }
+
+  // Kept out of render() so the toggle can redraw just this tab without
+  // rebuilding — and losing the scroll position of — the whole Info tab.
+  function bind(){
+    document.querySelectorAll("[data-gal]").forEach(b => b.addEventListener("click", () => openGallery(+b.dataset.gal)));
+    document.querySelectorAll(".time-mode").forEach(b => b.addEventListener("click", () => {
+      localStorage.setItem(TIME_KEY, b.dataset.mode);
+      render();
+    }));
+
+    const w = $("editWho");
+    if (w) w.addEventListener("click", () => {
+      const card = w.closest(".info-card");
+      card.innerHTML = `<h4>⚙️ Whose trip is this?</h4>
+        <input type="text" id="whoName" value="${esc(NAME)}" aria-label="Name">
+        <select id="whoP" style="width:100%;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border-strong);margin-bottom:8px">
+          <option value="he" ${PKEY==="he"?"selected":""}>He / him</option>
+          <option value="she" ${PKEY==="she"?"selected":""}>She / her</option>
+          <option value="they" ${PKEY==="they"?"selected":""}>They / them</option>
+        </select>
+        <button type="button" class="card-btn" id="whoSave">Save</button>
+        <button type="button" class="ghost-btn" id="whoCancel" style="margin-left:8px">Cancel</button>`;
+      $("whoSave").addEventListener("click", () => {
+        localStorage.setItem(storeKey("traveller"), $("whoName").value.trim() || TRIP.trip.traveller);
+        localStorage.setItem(storeKey("pronoun"), $("whoP").value);
+        location.reload();
+      });
+      $("whoCancel").addEventListener("click", render);
+    });
+  }
+
+  __liveOnChange = render;
+  // The calendar card changes to "Subscribe" once calendar.json has arrived.
+  document.addEventListener("calendar-ready", render);
+  render();
+  // Refresh live status periodically — a tab left open for hours goes stale.
+  // The server updates the file at most every ten minutes.
+  setInterval(() => updateLiveFlights(true), 5*60*1000);
+})();
+
+/* --- Messages ------------------------------------------------------------- */
+(function(){
+  const M = TRIP.messages || {};
+  const NOTES = storeKey("notes");
+  $("messagesHeading").textContent = tok(M.heading || "Notes");
+  // Be straight about where these live. They're in this browser's storage only —
+  // there's no server — so each person writing on their own phone builds their
+  // own private list. Without saying so, someone reasonably assumes the family's
+  // messages are pooled, and they aren't.
+  $("notesHint").innerHTML = esc(tok(M.hint || ""))
+    + `<br><span style="font-size:calc(14px * var(--fs));opacity:.85">Saved on this device only — other people's messages won't appear here,
+       and these will be lost if you clear your browser data. Use <b>Export as text</b> to keep or share them.</span>`;
+  $("noteInput").placeholder = tok(M.placeholder || "");
+  $("printHeading").textContent = tok(M.heading || "Notes");
+
+  const prompts = (M.prompts || []).map(tok);
+  if (prompts.length){
+    // Same prompt all day, different each day — deterministic on the date so it
+    // doesn't shuffle every time the page is opened.
+    const idx = Math.abs(new Date().toISOString().slice(0,10).split("-").join("") | 0) % prompts.length;
+    $("promptChip").innerHTML = `<div class="prompt-chip">💭 Today's prompt: ${esc(prompts[idx])}</div>`;
+  }
+
+  const load = () => { try { return JSON.parse(localStorage.getItem(NOTES) || "[]"); } catch(e){ return []; } };
+  const save = n => localStorage.setItem(NOTES, JSON.stringify(n));
+
+  function render(){
+    const notes = load(), el = $("notesList");
+    if (!notes.length){ el.innerHTML = `<p class="notes-hint">No messages yet — add the first one above.</p>`; return; }
+    el.innerHTML = notes.map((n,i) => `<div class="note-item"><div class="note-item-row">
+        <div class="note-text">${esc(n.text)}</div>
+        <button class="note-delete" data-i="${i}" aria-label="Delete message">✕</button></div>
+        <div class="note-date">${esc(n.date)}</div></div>`).join("");
+    el.querySelectorAll(".note-delete").forEach(b => b.addEventListener("click", () => {
+      const n = load(); n.splice(+b.dataset.i, 1); save(n); render();
+    }));
+  }
+
+  $("saveNote").addEventListener("click", () => {
+    const t = $("noteInput").value.trim();
+    if (!t) return;
+    const n = load();
+    n.unshift({ text:t, date:new Date().toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) });
+    save(n); $("noteInput").value = ""; render();
+  });
+
+  $("exportNotes").addEventListener("click", () => {
+    const n = load();
+    if (!n.length) return;
+    const body = n.map(x => `${x.date}\n${x.text}\n`).join("\n");
+    const blob = new Blob([`${tok(M.heading||"Notes")}\n\n${body}`], { type:"text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (TRIP.storagePrefix || "trip-") + "messages.txt";
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+  $("printNotes").addEventListener("click", () => window.print());
+
+  render();
+})();
+
+/* --- Tabs ----------------------------------------------------------------- */
+(function(){
+  const TABKEY = storeKey("tab");
+  const defs = [
+    { id:"overview",  label:"🧭 Overview" },
+    { id:"info",      label:"ℹ️ Info" },
+    { id:"bookings",  label:"🎟 Bookings", when:() => (TRIP.bookings||[]).some(b => !b.considering) },
+    { id:"eating",    label:"🍖 Eating", when:() => Array.isArray(TRIP.eating) && TRIP.eating.length > 0 },
+    { id:"roadstops", label:"🛣 On the way", when:() => Array.isArray(TRIP.roadStops) && TRIP.roadStops.length > 0 },
+    { id:"considering", label:"🤔 Considering", when:() => (TRIP.bookings||[]).some(b => b.considering) },
+    { id:"map",       label:"🗺️ Map",  when:() => !!map },
+    { id:"trek",      label:"🥾 Trek", when:() => !!(TRIP.trek && TRIP.trek.enabled) },
+    { id:"itinerary", label:"📅 Itinerary" },
+    { id:"messages",  label:"💬 Messages" },
+  ].filter(t => !t.when || t.when());
+
+  // Drop panels for tabs this trip doesn't have, so nothing orphaned lingers.
+  document.querySelectorAll(".tab-panel").forEach(p => {
+    if (!defs.some(d => d.id === p.dataset.tab)) p.remove();
+  });
+
+  $("tabbar").innerHTML = defs.map(t =>
+    `<button type="button" class="tab-btn" role="tab" data-tab="${t.id}" id="tabbtn-${t.id}">${t.label}</button>`).join("");
+
+  const buttons = [...document.querySelectorAll(".tab-btn")];
+  const panels  = [...document.querySelectorAll(".tab-panel")];
+
+  function activate(tab, opts){
+    opts = opts || {};
+    buttons.forEach(b => b.setAttribute("aria-selected", b.dataset.tab === tab ? "true" : "false"));
+    panels.forEach(p => p.classList.toggle("active", p.dataset.tab === tab));
+    if (tab === "map" && map){
+      // Leaflet can't measure a display:none container, and this panel was
+      // hidden when the map was created — re-measure now it's visible.
+      setTimeout(() => {
+        map.invalidateSize(); if (routeBounds) map.fitBounds(routeBounds);
+        if (typeof window.__positionMapResizeHandle === "function") window.__positionMapResizeHandle();
+      }, 50);
+    }
+    if (!opts.skipSave) { try { localStorage.setItem(TABKEY, tab); } catch(e){} }
+    window.scrollTo({ top:0, behavior:"auto" });
+  }
+
+  buttons.forEach(b => b.addEventListener("click", () => activate(b.dataset.tab)));
+  const saved = localStorage.getItem(TABKEY);
+  activate(defs.some(d => d.id === saved) ? saved : "overview", { skipSave:true });
+})();
+
+/* --- Service worker ------------------------------------------------------- */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+</script>
+
+<script>
+/* ===========================================================================
+   DEMO CONTROLS — the scrubber, and the scripted-update panel.
+
+   Renders only when the demo clock above activated, so it cannot appear on a
+   real trip. Runs last, after the engine has painted: it only adds chrome and
+   never touches what the engine rendered.
+
+   The scrubber sets ?demo=<date> and reloads rather than re-rendering in place.
+   That is deliberate — see the comment on the demo clock. A reload is close to
+   instant on a service-worker-cached static site, and it guarantees every part
+   of the page agrees about what day it is. Re-rendering in place would mean
+   making 17 load-time IIFEs re-callable, and any one missed would leave part of
+   the page silently on the old date in front of a client.
+   =========================================================================== */
+(function(){
+  var DEMO = window.__DEMO__;
+  if (!DEMO) return;
+
+  var days = TRIP.days || [];
+  if (!days.length) return;
+  var cfg = DEMO.cfg;
+
+  function addDays(ds, n){
+    var d = new Date(ds + "T12:00:00Z");     // noon UTC: immune to DST either side
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  }
+  function diffDays(a, b){
+    return Math.round((new Date(b + "T12:00:00Z") - new Date(a + "T12:00:00Z")) / 864e5);
+  }
+  function pretty(ds){
+    return new Date(ds + "T12:00:00Z").toLocaleDateString("en-GB",
+      { weekday:"short", day:"numeric", month:"short", timeZone:"UTC" });
+  }
+
+  var rangeStart = addDays(days[0].date, -(cfg.padBeforeDays || 5));
+  var rangeEnd   = addDays(days[days.length-1].date, cfg.padAfterDays || 3);
+  var span       = diffDays(rangeStart, rangeEnd);
+  var current    = Math.min(Math.max(diffDays(rangeStart, DEMO.date), 0), span);
+
+  /* What the app is showing on a given date, in the same terms the app uses. */
+  function dayLabel(ds){
+    for (var i = 0; i < days.length; i++){
+      if (days[i].date === ds) return "Day " + days[i].n + " of " + days.length;
+    }
+    if (ds < days[0].date) {
+      var n = diffDays(ds, days[0].date);
+      return n === 1 ? "1 day before departure" : n + " days before departure";
+    }
+    return "After the trip";
+  }
+
+  function go(params){
+    var u = new URL(location.href);
+    Object.keys(params).forEach(function(k){
+      if (params[k] === null) u.searchParams.delete(k);
+      else u.searchParams.set(k, params[k]);
+    });
+    location.href = u.toString();
+  }
+
+  var css = document.createElement("style");
+  css.textContent = [
+    /* Deliberately OUTSIDE the trip palette. This bar was drawn in
+       --primary-deep and --accent, which is to say it looked like a feature of
+       the app rather than a rig sitting on top of one. In front of a client
+       that is a real risk: an operator's scrubber and a "Publish it" button
+       are exactly the things a viewer must not think parents are given.
+
+       So: cool charcoal against the app's warm greens and creams, monochrome
+       controls, and a single amber marker on the DEMO pill and the live
+       indicator. Nothing here reads as belonging to the trip. The tokens are
+       local to #demoBar so the trip theme cannot reach in and the bar cannot
+       leak out. */
+    "#demoBar{--d-bg:#23272E;--d-fg:#E7E9EC;--d-mark:#F2B441;--d-line:rgba(231,233,236,.22);}",
+    "#demoBar{position:fixed;left:0;right:0;bottom:0;z-index:9000;background:var(--d-bg);",
+      "color:var(--d-fg);padding:10px 14px calc(10px + env(safe-area-inset-bottom));",
+      "border-top:2px solid var(--d-mark);",
+      "box-shadow:0 -4px 18px rgba(0,0,0,.28);font-family:'Inter',sans-serif;}",
+    "#demoBar .row{display:flex;align-items:center;gap:14px;max-width:760px;margin:0 auto;flex-wrap:wrap;}",
+    "#demoBar .pill{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.5px;",
+      "text-transform:uppercase;color:var(--d-bg);background:var(--d-mark);",
+      "border-radius:20px;padding:4px 10px;font-weight:700;flex-shrink:0;}",
+    "#demoBar .when{font-size:14px;font-weight:600;line-height:1.25;flex:1;min-width:150px;}",
+    "#demoBar .when small{display:block;font-weight:400;opacity:.75;font-size:12px;}",
+    "#demoScrub{width:100%;accent-color:var(--d-mark);height:32px;cursor:grab;}",
+    "#demoBar .btn{background:var(--d-fg);color:var(--d-bg);border:none;border-radius:20px;",
+      "padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;",
+      "min-height:40px;flex-shrink:0;}",
+    "#demoBar .btn.ghost{background:transparent;color:var(--d-fg);border:1.5px solid var(--d-line);}",
+    "#demoBar .live{font-size:12px;font-weight:700;color:var(--d-mark);flex-shrink:0;}",
+    "#demoBar .story{border-top:1px solid var(--d-line);margin-top:8px;padding-top:8px;}",
+    "#demoBar .beat{flex:1;min-width:170px;font-size:13px;line-height:1.35;}",
+    "#demoBar .beat b{color:var(--d-mark);}",
+    "#demoBar .beat small{display:block;opacity:.72;font-size:11.5px;margin-top:2px;}",
+    "#demoBar .dots{display:flex;gap:6px;flex-shrink:0;}",
+    "#demoBar .dots button{width:11px;height:11px;padding:0;border-radius:50%;cursor:pointer;",
+      "border:1.5px solid var(--d-line);background:transparent;}",
+    "#demoBar .dots button[aria-current='true']{background:var(--d-fg);border-color:var(--d-fg);}",
+    "#demoBar .nav{background:transparent;color:var(--d-fg);border:1.5px solid var(--d-line);",
+      "border-radius:20px;min-width:44px;min-height:40px;font-size:15px;cursor:pointer;flex-shrink:0;}",
+    "#demoBar .nav[disabled]{opacity:.3;cursor:default;}",
+    "#demoBar .lbl-short{display:none;}",
+    "#demoSheet{position:fixed;inset:0;z-index:9001;background:rgba(0,0,0,.55);display:flex;",
+      "align-items:center;justify-content:center;padding:20px;}",
+    "#demoSheet .card{background:var(--surface);color:var(--text);border-radius:16px;padding:20px;",
+      "max-width:620px;width:100%;max-height:84vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.4);}",
+    "#demoSheet h3{font-family:'Fraunces',serif;margin:0 0 6px;font-size:20px;}",
+    "#demoSheet p{margin:0 0 14px;font-size:14px;line-height:1.55;color:var(--text-body);}",
+    "#demoSheet .file{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);",
+      "margin-bottom:6px;letter-spacing:.5px;}",
+    "#demoSheet pre{background:#12211A;border-radius:10px;padding:12px;overflow-x:auto;margin:0 0 16px;",
+      "font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;}",
+    "#demoSheet pre span{display:block;white-space:pre;color:#C9C3B4;}",
+    "#demoSheet pre span.add{background:rgba(88,200,120,.16);color:#8FE0A8;}",
+    "#demoSheet pre span.del{background:rgba(230,90,90,.16);color:#F0A0A0;}",
+    /* On a phone the bar was taking 37% of the viewport, mostly the presenter
+       note wrapping to six lines. That note is a prompt for whoever is talking
+       over the demo, not something a viewer on their own phone needs — and the
+       app underneath is the thing being judged. Drop it, and shorten the
+       longest button labels, below the width where the row stops fitting. */
+    "@media (max-width:560px){",
+      "#demoBar .beat small{display:none;}",
+      "#demoBar .beat{min-width:0;font-size:12.5px;}",
+      "#demoBar .lbl-long{display:none;}",
+      "#demoBar .lbl-short{display:inline;}",
+      "#demoBar{padding-top:8px;}",
+      "#demoBar .row{gap:10px;}",
+    "}",
+    /* On a wide screen the app is a centred column with a lot of empty page
+       either side of it, and a full-width bar across the bottom was covering
+       the fold of that column — on the opening beat it sat over Key moments —
+       for no reason other than that phones need it there.
+
+       So above the width where the dead space appears, it becomes a card
+       floating in it: bottom right, clear of the content, and reading much
+       more like a tool parked next to the app than a strip attached to it.
+       Everything below this width is untouched. */
+    /* The panel takes its own width and the page makes room for it, rather
+       than the panel squeezing into whatever gutter a 640px centred column
+       happens to leave. Sizing it from the leftover space needed a ~1280px
+       window before it would fit — which a 1920px laptop at 175% Windows
+       scaling is not, so the bar stayed at the bottom on exactly the machine
+       this is presented from. Reserving the space instead means it works from
+       1060px up, and the column simply re-centres in what is left. */
+    "@media (min-width:1060px){",
+      ":root{--demo-w:min(360px, 26vw);}",
+      "body{padding-right:calc(var(--demo-w) + 44px);}",
+      "#demoBar{left:auto;right:22px;bottom:22px;border-radius:14px;",
+        "width:var(--demo-w);",
+        "max-height:calc(100vh - 44px);overflow-y:auto;",
+        "border:2px solid var(--d-mark);padding:16px;",
+        "box-shadow:0 10px 34px rgba(0,0,0,.34);}",
+      "#demoBar .row{max-width:none;gap:10px;}",
+      "#demoBar .when{flex:1 1 100%;}",
+      "#demoBar .btn{flex:1 1 auto;}",
+      // Beat text onto its own line above the controls, so ◀ and ▶ stay
+      // together on the row beneath rather than being pushed apart by it.
+      "#demoBar .beat{order:-1;flex:0 0 100%;min-width:0;}",
+      "#demoBar .dots{flex:1;justify-content:center;}",
+    "}",
+    "@media print{#demoBar,#demoSheet{display:none!important;}}"
+  ].join("");
+  document.head.appendChild(css);
+
+  var bar = document.createElement("div");
+  bar.id = "demoBar";
+  document.body.appendChild(bar);
+
+  var story = Array.isArray(cfg.story) && cfg.story.length ? cfg.story : null;
+
+  /* The running order. Shown collapsed to a single "play" button until you're
+     in it, so free scrubbing isn't cluttered by controls for a mode you left. */
+  function storyRow(){
+    if (!story) return "";
+    var b = DEMO.beat;
+    if (!b){
+      return '<div class="row story">' +
+        '<span class="beat" style="opacity:.75">Six stops, in order — the ninety-second version.</span>' +
+        '<button type="button" class="btn" id="demoPlay">▶ Play the story</button></div>';
+    }
+    var s    = story[b - 1];
+    var next = story[b];
+    return '<div class="row story">' +
+      '<button type="button" class="nav" id="demoPrev" aria-label="Previous stop"' +
+        (b === 1 ? " disabled" : "") + ">◀</button>" +
+      '<span class="beat"><b>' + b + " of " + story.length + " · " + s.label + "</b>" +
+        (s.note ? "<small>" + s.note + "</small>" : "") + "</span>" +
+      '<span class="dots">' + story.map(function(x, i){
+        return '<button type="button" data-beat="' + (i+1) + '"' +
+               (i+1 === b ? ' aria-current="true"' : "") +
+               ' aria-label="' + (i+1) + ". " + x.label + '"></button>';
+      }).join("") + "</span>" +
+      '<button type="button" class="btn" id="demoNext">' +
+        (next ? 'Next<span class="lbl-long">: ' + next.label + "</span> ▶"
+              : '↺ Start again') + "</button>" +
+    "</div>";
+  }
+
+  function wireStory(){
+    if (!story) return;
+    var play = document.getElementById("demoPlay");
+    if (play) play.addEventListener("click", function(){ go({ beat: 1, demo: null, update: null }); });
+
+    var prev = document.getElementById("demoPrev");
+    if (prev) prev.addEventListener("click", function(){
+      if (DEMO.beat > 1) go({ beat: DEMO.beat - 1, demo: null, update: null });
+    });
+
+    var next = document.getElementById("demoNext");
+    if (next) next.addEventListener("click", function(){
+      var to = DEMO.beat >= story.length ? 1 : DEMO.beat + 1;
+      go({ beat: to, demo: null, update: null });
+    });
+
+    [].forEach.call(document.querySelectorAll("#demoBar .dots button"), function(d){
+      d.addEventListener("click", function(){
+        go({ beat: d.dataset.beat, demo: null, update: null });
+      });
+    });
+  }
+
+  function paintBar(){
+    // The next change not yet published, and only if the trip has reached the
+    // day it happened. Null means there is nothing to offer right now.
+    var up = DEMO.updates[DEMO.published];
+    var nextEdit = (up && (!up.onDate || DEMO.date >= up.onDate)) ? up : null;
+
+    bar.innerHTML =
+      '<div class="row">' +
+        '<span class="pill">Demo</span>' +
+        '<span class="when" id="demoWhen">' + pretty(DEMO.date) +
+          '<small>' + dayLabel(DEMO.date) + '</small></span>' +
+        /* Not either/or any more. Mid-story the usual state is "one change is
+           live and another is waiting", so the live badge, Revert and the next
+           edit all have to be able to sit on the bar together. */
+        (DEMO.published
+          ? '<span class="live">● ' + (DEMO.published > 1 ? DEMO.published + " updates" : "Update") + ' live</span>' +
+            '<button type="button" class="btn ghost" id="demoRevert">Revert</button>'
+          : "") +
+        /* Only once the trip has actually reached the day the change happened.
+           Publishing the Dubai delay from "three days out" put the team in an
+           airport hotel before they had left, and stamped the footer "last
+           updated 19 Jul" while the viewer was standing on the 14th — a date
+           in the future, which is the one detail in this app most likely to
+           be noticed and least likely to be forgiven. */
+        (nextEdit
+          ? '<button type="button" class="btn" id="demoShowEdit">' +
+            '<span class="lbl-long">Show the operator’s edit</span>' +
+            '<span class="lbl-short">Operator’s edit</span></button>'
+          : "") +
+      '</div>' +
+      '<div class="row" style="margin-top:2px">' +
+        '<label for="demoScrub" style="position:absolute;left:-9999px">Move the trip date</label>' +
+        '<input type="range" id="demoScrub" min="0" max="' + span + '" value="' + current + '">' +
+      '</div>' +
+      storyRow();
+
+    wireStory();
+
+    var scrub = document.getElementById("demoScrub");
+    var when  = document.getElementById("demoWhen");
+
+    /* Label follows the thumb live; the reload waits for `change`. Binding the
+       reload to `input` would fire on every pixel of the drag. */
+    scrub.addEventListener("input", function(){
+      var ds = addDays(rangeStart, +scrub.value);
+      when.innerHTML = pretty(ds) + "<small>" + dayLabel(ds) + "</small>";
+    });
+    /* Scrubbing leaves the running order: an arbitrary date is not a beat, and
+       carrying `beat` forward would make the story controls describe a stop you
+       are no longer standing on. `update` is preserved deliberately — having
+       published the change, you should be able to scrub around and see that it
+       persists. */
+    scrub.addEventListener("change", function(){
+      var ds = addDays(rangeStart, +scrub.value);
+      if (ds === DEMO.date) return;
+      go({ demo: ds, beat: null, update: DEMO.published ? String(DEMO.published) : null });
+    });
+
+    /* Reverts everything, not just the last one. In front of an audience
+       "Revert" means "put it back how it was" — unwinding one change at a time
+       would be a second thing to explain, mid-pitch, for no gain. */
+    var revert = document.getElementById("demoRevert");
+    if (revert) revert.addEventListener("click", function(){ go({ update: null }); });
+    var show = document.getElementById("demoShowEdit");
+    if (show) show.addEventListener("click", openSheet);
+  }
+
+  function openSheet(){
+    // The next one that has not gone out yet — the running order and the
+    // published count between them decide which edit is on the table.
+    var u = DEMO.updates[DEMO.published];
+    if (!u) return;
+    var sheet = document.createElement("div");
+    sheet.id = "demoSheet";
+    sheet.innerHTML =
+      '<div class="card" role="dialog" aria-modal="true" aria-label="Operator edit">' +
+        "<h3>" + u.label + "</h3>" +
+        "<p>" + u.blurb + "</p>" +
+        '<div class="file">trip-config.js</div>' +
+        "<pre>" + (u.diff || []).map(function(l){
+          var cls  = l.type === "add" ? "add" : l.type === "del" ? "del" : "";
+          var sign = l.type === "add" ? "+" : l.type === "del" ? "-" : " ";
+          var safe = String(l.text).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+          return '<span class="' + cls + '">' + sign + safe + "</span>";
+        }).join("") + "</pre>" +
+        '<p>That is the whole change: one file, edited and republished. Every parent ' +
+        'sees it the next time the app loads — no app-store update, nothing for them to do.</p>' +
+        '<button type="button" class="btn" id="demoPublish" style="background:var(--primary);color:var(--bg)">' +
+          "Publish it</button> " +
+        '<button type="button" class="btn ghost" id="demoClose" ' +
+          'style="background:transparent;color:var(--text-body);border:1.5px solid var(--border-strong)">' +
+          "Close</button>" +
+      "</div>";
+    document.body.appendChild(sheet);
+
+    document.getElementById("demoPublish").addEventListener("click", function(){
+      // Inside a beat, the beat already fixes the date — adding `demo` would be
+      // a parameter that `beat` overrides on the next load, i.e. pure noise in
+      // a URL someone may well be looking at on a projector.
+      var now = String(DEMO.published + 1);
+      if (DEMO.beat) go({ update: now });
+      else go({ update: now, demo: u.onDate || DEMO.date });
+    });
+    function close(){ sheet.remove(); }
+    document.getElementById("demoClose").addEventListener("click", close);
+    sheet.addEventListener("click", function(e){ if (e.target === sheet) close(); });
+    document.addEventListener("keydown", function esc(e){
+      if (e.key === "Escape"){ close(); document.removeEventListener("keydown", esc); }
+    });
+  }
+
+  paintBar();
+
+  /* Reserve exactly the space the bar occupies. Measured rather than fixed: the
+     row wraps to two or three lines on a narrow screen, and a hardcoded value
+     that clears it on desktop clips the footer on a phone.
+
+     Only when it IS a bottom bar, though. As a side panel it covers nothing,
+     and reserving its height left a 400px hole under the footer. Detected by
+     measuring rather than by repeating the breakpoint here, so the CSS stays
+     the single place that decides which layout is in use. */
+  function reserveSpace(){
+    var full = bar.offsetWidth >= document.documentElement.clientWidth - 1;
+    document.body.style.paddingBottom = full ? (bar.offsetHeight + 24) + "px" : "";
+  }
+  reserveSpace();
+  window.addEventListener("resize", reserveSpace);
+})();
 </script>
 </body>
 </html>
