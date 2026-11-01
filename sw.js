@@ -17,7 +17,7 @@
    - Live data (weather, flight status) is never cached. Stale weather shown as
      current is worse than no weather.
 */
-const CACHE = "expedition-v2-22";
+const CACHE = "expedition-v2-23";
 // The trip's own map, saved by the "Save map for offline" button. Kept apart
 // from CACHE so an app update does not throw away tens of MB someone chose to
 // download on wifi.
@@ -71,6 +71,11 @@ self.addEventListener("fetch", e => {
      cache-first below: they never change, and signal is scarce. */
   // The trip's own map is read in pieces (Range requests). Saved, the pieces
   // come from the copy on the phone; not saved, straight from the network.
+  // A gallery video is read in pieces as it plays, and is far too big to keep:
+  // left to the browser, untouched. (Through networkFirst every piece was a
+  // 206 the cache refuses, and iPhones are fussy about video via a worker.)
+  if (url.origin === self.location.origin && /\.(mp4|mov|m4v)$/i.test(url.pathname)) return;
+
   if (url.origin === self.location.origin && url.pathname.endsWith(".pmtiles")) {
     e.respondWith(mapPiece(req));
     return;

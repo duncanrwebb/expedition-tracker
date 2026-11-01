@@ -1,4 +1,4 @@
-/* Expedition Log — keepsake, made by scripts/make-keepsake.js on 2026-10-24.
+/* Expedition Log — keepsake, made by scripts/make-keepsake.js on 2026-11-01.
    The trip is over. This is the memory of it, with the details used during
    the trip taken out; the full trip is trips/<name>/trip-config.js in the repo. */
 
@@ -16,8 +16,7 @@ const TRIP = {
     "destinationTimeZone": "Asia/Phnom_Penh",
     "destinationLabel": "Phnom Penh",
     "updated": "2026-10-24",
-    "audience": "at-home",
-    "footer": "This trip has ended. The app is kept as a memory of it — nothing here is being updated, and the bookings, contacts and other details used during the trip have been taken out."
+    "audience": "at-home"
   },
   "theme": {
     "name": "Cambodia & Vietnam",
@@ -970,6 +969,6 @@ const TRIP = {
     "marcus-trip-"
   ],
   "keepsake": {
-    "since": "2026-10-24"
+    "since": "2026-11-01"
   }
 };
