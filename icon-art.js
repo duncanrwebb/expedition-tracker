@@ -64,25 +64,37 @@ const ICON_ART = {
     ctx.fillRect(s*0.11, s*base, s*0.78, s*0.05);
   },
 
-  /* Snow-capped peaks. The cap is the background colour showing through rather
-     than white, so it stays right on any palette. */
-  mountain(ctx, s, c, bg){
-    const tri = (x, w, h, fill) => {
-      ctx.fillStyle = fill;
+  /* Snow-capped peaks. The first version cut the cap out in the header colour,
+     and on Geneva it read as two pyramids with a notch in one: what says
+     "mountain" is a white cap with a ragged snowline, on both peaks. White is
+     safe on any palette because the header is always dark (white text sits on
+     it). Each peak has a shaded side, so the ridge reads as a ridge. */
+  mountain(ctx, s, c){
+    const g = 0.80;
+    const peak = (x, w, h, lit, dark, k) => {
+      const top = g - h;
+      ctx.fillStyle = lit;
       ctx.beginPath();
-      ctx.moveTo(s*x, s*(0.78 - h));
-      ctx.lineTo(s*(x + w), s*0.78);
-      ctx.lineTo(s*(x - w), s*0.78);
+      ctx.moveTo(s*x, s*top); ctx.lineTo(s*x, s*g); ctx.lineTo(s*(x - w), s*g);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = dark;
+      ctx.beginPath();
+      ctx.moveTo(s*x, s*top); ctx.lineTo(s*(x + w), s*g); ctx.lineTo(s*x, s*g);
+      ctx.closePath(); ctx.fill();
+      // The cap: down `k` of the height, its lower edge a zigzag.
+      const y = top + h*k, hw = w*k, d = h*k;
+      ctx.fillStyle = "#FFFFFF";
+      ctx.beginPath();
+      ctx.moveTo(s*x, s*top);
+      ctx.lineTo(s*(x + hw), s*y);
+      ctx.lineTo(s*(x + hw*0.45), s*(y - d*0.22));
+      ctx.lineTo(s*(x + hw*0.05), s*(y + d*0.10));
+      ctx.lineTo(s*(x - hw*0.40), s*(y - d*0.24));
+      ctx.lineTo(s*(x - hw), s*y);
       ctx.closePath(); ctx.fill();
     };
-    tri(0.68, 0.24, 0.30, shade(c, 0.28));
-    tri(0.40, 0.30, 0.42, c);
-    ctx.fillStyle = bg || shade(c, 0.7);
-    ctx.beginPath();
-    ctx.moveTo(s*0.40, s*0.36); ctx.lineTo(s*0.475, s*0.475);
-    ctx.lineTo(s*0.44, s*0.45); ctx.lineTo(s*0.40, s*0.50);
-    ctx.lineTo(s*0.36, s*0.45); ctx.lineTo(s*0.325, s*0.475);
-    ctx.closePath(); ctx.fill();
+    peak(0.68, 0.25, 0.36, shade(c, 0.22), shade(c, 0.40), 0.30);
+    peak(0.40, 0.32, 0.50, c, shade(c, 0.18), 0.34);
   },
 
   /* Rainforest canopy. This took three goes. Stacked triangles were conifers.
