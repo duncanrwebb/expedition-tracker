@@ -167,6 +167,7 @@
   .gal-cap a { color:#fff; font-weight:600; }
   .map-photo { width:40px; height:40px; border-radius:8px; border:2px solid #fff; box-shadow:0 1px 5px rgba(0,0,0,.45); background:#ccc center/cover; position:relative; cursor:pointer; }
   .map-photo::after { content:""; position:absolute; left:50%; bottom:-10px; margin-left:-6px; border:6px solid transparent; border-top-color:#fff; border-bottom:0; height:4px; }
+  .map-photo .map-play { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:#fff; font:normal 14px/1 Inter,sans-serif; text-shadow:0 0 4px rgba(0,0,0,.8); }
   .map-photo span { position:absolute; top:-8px; right:-8px; background:var(--primary); color:#fff; border-radius:10px; padding:0 6px; font:600 11px/18px Inter,sans-serif; border:1.5px solid #fff; }
   .card-btn { background:var(--primary); color:var(--bg); border:none; border-radius:8px; padding:9px 14px; font-weight:600; font-size:calc(14px * var(--fs)); cursor:pointer; min-height:40px; }
   .card-btn.secondary { background:none; color:var(--primary); border:1.5px solid var(--primary); }
@@ -377,6 +378,12 @@
   var v = q.get("trip") || q.get("config");
   if (v && /^[a-z0-9-]+$/i.test(v)) window.TRIP_DIR = "trips/" + v + "/";
   document.write('<script src="' + window.TRIP_DIR + 'trip-config.js"><\/script>');
+  // A copy to keep on a computer or a USB stick (scripts/make-offline-copy.js),
+  // opened straight from the disk. A browser will not let a page opened from a
+  // disk read the files the app would otherwise fetch (the photo list, the
+  // map's description), so the copy carries them in this one script, which
+  // sets window.OFFLINE_COPY. On a website there is no such file.
+  if (location.protocol === "file:" && !v) document.write('<script src="offline-copy.js"><\/script>');
 })();
 </script>
 <script>
@@ -1210,7 +1217,8 @@ const CAL_AT_HOME = CAL.atHome;
 const tripEvents = CAL.events;
 const APPLE = /iP(hone|ad|od)|Macintosh/.test(navigator.userAgent);
 let CAL_SUB = null;   // the published calendar's address, once calendar.json is read
-fetch(window.TRIP_DIR + "calendar.json", { cache: "no-store" })
+// A copy on a disk has no calendar to subscribe to.
+if (!window.OFFLINE_COPY) fetch(window.TRIP_DIR + "calendar.json", { cache: "no-store" })
   .then(r => r.ok ? r.json() : null)
   .then(j => { if (j && j.path) { CAL_SUB = j.path; document.dispatchEvent(new Event("calendar-ready")); } })
   .catch(() => {});
@@ -1533,7 +1541,7 @@ let map = null, routeBounds = null;
     const draw = () => {
       photoLayer.clearLayers();
       const groups = [];
-      placed.forEach(x => {
+      placed.filter(x => mode === "videos" ? x.p.video : !x.p.video).forEach(x => {
         const pt = map.latLngToLayerPoint([x.p.lat, x.p.lng]);
         const g = groups.find(g => g.pt.distanceTo(pt) < 44);
         g ? g.items.push(x) : groups.push({ pt, items: [x] });
@@ -1546,7 +1554,7 @@ let map = null, routeBounds = null;
         let best = 0; pts.forEach((q, k) => { if (Math.hypot(q.x - cx, q.y - cy) < Math.hypot(pts[best].x - cx, pts[best].y - cy)) best = k; });
         const x = g.items[best], n = g.items.length;
         const icon = L.divIcon({ className: "", iconSize: [40, 40], iconAnchor: [20, 50],   // standing above the spot, clear of the day markers
-          html: `<div class="map-photo" style="background-image:url('${esc(dir + (x.p.t || x.p.f))}')">${n > 1 ? `<span>${n}</span>` : ""}</div>` });
+          html: `<div class="map-photo" style="background-image:url('${esc(dir + (x.p.t || x.p.f))}')">${n > 1 ? `<span>${n}</span>` : ""}${x.p.video ? `<i class="map-play">▶</i>` : ""}</div>` });
         L.marker([x.p.lat, x.p.lng], { icon, zIndexOffset: 500 })
           .on("click", () => {
             // A big group, zoomed out: zoom in on it first, so it splits up.
@@ -1554,57 +1562,61 @@ let map = null, routeBounds = null;
               const b = L.latLngBounds(g.items.map(y => [y.p.lat, y.p.lng]));
               if (b.getNorthEast().distanceTo(b.getSouthWest()) > 50) return map.fitBounds(b.pad(0.3), { maxZoom: 17 });
             }
-            window.openGallery && window.openGallery(g.items[0].i);
+            // Swiping on stays within what the map is showing: photos, or videos.
+            window.openGallery && window.openGallery(g.items[0].i, G.map((p, i) => i).filter(i => !!G[i].video === (mode === "videos")));
           })
           .addTo(photoLayer);
       });
     };
     map.on("zoomend viewreset resize", draw);   // resize: the map tab opening
-    draw();
 
-    /* The trip, or the photos: two views of one map, chosen with a switch
-       above it. The trip view is the route and the day markers (with their
-       phase filters); the photos view is the photos alone, where they were
-       taken. Remembered on this phone. */
+    /* The trip, the photos, or the videos: views of one map, chosen with a
+       switch above it. The trip view is the route and the day markers (with
+       their phase filters); the others show only photos, or only videos,
+       where they were taken. Remembered on this phone. */
     const MODEKEY = storeKey("map-mode");
     const ctl = $("mapControls"), filters = [...ctl.children];
     // Above the map, where the heading is, so it reads as what the map shows.
     $("mapWrapper").insertAdjacentHTML("beforebegin", `<div class="seg map-mode" role="group" aria-label="What the map shows">
       <button type="button" data-mode="trip">🧭 The trip</button>
-      <button type="button" data-mode="photos">📷 Media</button></div>`);
+      <button type="button" data-mode="photos">📷 Photos</button>${placed.some(x => x.p.video) ? `<button type="button" data-mode="videos">▶ Videos</button>` : ""}</div>`);
     const seg = $("mapWrapper").previousElementSibling;
     // Framed on the trip's own area: the odd photo at the home airport would
     // otherwise zoom it out to half the world. Those are still there, zoomed out.
     const area = routeBounds ? routeBounds.pad(1) : null;
     const inArea = placed.filter(x => !area || area.contains([x.p.lat, x.p.lng]));
-    const photoBounds = L.latLngBounds((inArea.length ? inArea : placed).map(x => [x.p.lat, x.p.lng])).pad(0.1);
+    const boundsOf = video => { const set = (inArea.length ? inArea : placed).filter(x => !!x.p.video === video);
+      return set.length ? L.latLngBounds(set.map(x => [x.p.lat, x.p.lng])).pad(0.1) : routeBounds; };
+    const photoBounds = boundsOf(false), videoBounds = boundsOf(true);
     let mode = "trip", target = null;
     const fit = () => {
       if (target) { map.setView(target, 17); target = null; return; }
-      map.fitBounds(mode === "photos" ? photoBounds : routeBounds);
+      map.fitBounds(mode === "photos" ? photoBounds : mode === "videos" ? videoBounds : routeBounds);
     };
     function setMode(m){
+      if (m === "videos" && !seg.querySelector('[data-mode="videos"]')) m = "photos";
       mode = m;
+      const media = m !== "trip";
       seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === m)));
-      if (m === "photos") {
+      if (media) {
         Object.values(layers).forEach(l => map.removeLayer(l));
-        map.addLayer(photoLayer);
+        draw(); map.addLayer(photoLayer);
       } else {
         map.removeLayer(photoLayer);
         // Phases switched off with the filters stay off.
         Object.entries(layers).forEach(([k, l]) => { const c = ctl.querySelector(`.chip[data-phase="${k}"]`); if (!c || !c.classList.contains("off")) map.addLayer(l); });
       }
-      filters.forEach(el => el.style.display = m === "photos" ? "none" : "");
-      $("mapHeading").textContent = m === "photos" ? "Media map" : "Route map";
+      filters.forEach(el => el.style.display = media ? "none" : "");
+      $("mapHeading").textContent = m === "photos" ? "Where the photos were taken" : m === "videos" ? "Where the videos were taken" : "Route map";
       try { localStorage.setItem(MODEKEY, m); } catch(e){}
     }
     seg.addEventListener("click", e => { const b = e.target.closest("button"); if (b) { setMode(b.dataset.mode); fit(); } });
     window.__mapFit = fit;
     window.__mapMode = setMode;
     // From the viewer's "Map": that photo, close up.
-    window.__mapShowPhoto = i => { const p = G[i]; if (!p || p.lat == null) return; setMode("photos"); target = [p.lat, p.lng]; };
+    window.__mapShowPhoto = i => { const p = G[i]; if (!p || p.lat == null) return; setMode(p.video ? "videos" : "photos"); target = [p.lat, p.lng]; };
     let savedMode = null; try { savedMode = localStorage.getItem(MODEKEY); } catch(e){}
-    setMode(savedMode === "photos" ? "photos" : "trip");
+    setMode(["photos", "videos"].includes(savedMode) ? savedMode : "trip");
     if ($("map").offsetWidth) fit();
   });
 })();
@@ -1711,6 +1723,29 @@ let map = null, routeBounds = null;
     } catch(e){ draw("failed"); }
   }
 
+  /* A copy on a disk (scripts/make-offline-copy.js) has the map with it, and
+     nothing to save. Each map file is there as a script holding it as text —
+     a page opened from a disk may not read the file itself — which is turned
+     back into bytes once and read from memory. */
+  const COPY = window.OFFLINE_COPY;
+  if (COPY) {
+    if (!COPY.map || !COPY.map.file) return;
+    const fromDisk = name => loadScript(window.TRIP_DIR + name + ".js").then(() => {
+      const s = atob(window.OFFLINE_MAP[name]), buf = new Uint8Array(s.length);
+      for (let i = 0; i < s.length; i++) buf[i] = s.charCodeAt(i);
+      delete window.OFFLINE_MAP[name];
+      // The library's own reader of a map file, given this one instead of an address.
+      const PMTiles = new protomapsL.PmtilesSource("x.pmtiles", false).p.constructor;
+      return new PMTiles({ getKey: () => name, getBytes: async (off, len) => ({ data: buf.buffer.slice(off, off + len) }) });
+    });
+    loadScript(MAP_LIB)
+      .then(() => Promise.all([fromDisk(COPY.map.file), COPY.map.overview ? fromDisk(COPY.map.overview.file) : null,
+                               COPY.map.world ? fromDisk(COPY.map.world.file) : null]))
+      .then(([detail, overview, world]) => show(COPY.map, detail, overview, world))
+      .catch(() => {});
+    return;
+  }
+
   const fromSaved = () => caches.open(MAP_CACHE).then(c => c.match(JSON_URL)).then(r => r ? r.json() : null).catch(() => null);
   fetch(JSON_URL, { cache: "no-store" })
     .then(r => r.ok ? r.json() : fromSaved(), fromSaved)
@@ -1721,13 +1756,28 @@ let map = null, routeBounds = null;
       const detailUrl = abs(j.file), overviewUrl = j.overview ? abs(j.overview.file) : null;
       urls = [detailUrl].concat(overviewUrl ? [overviewUrl] : []);
       await loadScript(MAP_LIB);
-      if (typeof protomapsL === "undefined") return;
+      if (show(j, detailUrl, overviewUrl)) draw();
+    })
+    .catch(() => {});
+
+  // Puts the trip's own map under the usual one. `detailUrl` and `overviewUrl`
+  // are what the library reads: the files' addresses, or for a copy on a disk
+  // the files themselves.
+  function show(j, detailUrl, overviewUrl, worldUrl){
+      if (typeof protomapsL === "undefined") return false;
       // Beneath Leaflet's own tile pane (z-index 200), so Esri's map covers it
       // whenever it loads.
       map.createPane("ownMap").style.zIndex = 150;
       const own = (u, maxz, z) => protomapsL.leafletLayer({ url: u, flavor: "light", lang: "en", maxDataZoom: maxz, pane: "ownMap", zIndex: z,
         attribution: '&copy; <a href="https://openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors, <a href="https://protomaps.com" target="_blank" rel="noreferrer">Protomaps</a>' });
-      if (overviewUrl) own(overviewUrl, j.overview.maxzoom, 1).addTo(map);
+      // A copy kept on a disk also has a light map of the whole world beneath
+      // (make-offline-map.js --world), so nothing beyond the trip's area is grey.
+      if (worldUrl) own(worldUrl, j.world.maxzoom, 0).addTo(map);
+      if (overviewUrl) {
+        const overview = own(overviewUrl, j.overview.maxzoom, 1);
+        if (worldUrl) overview.backgroundColor = undefined;
+        overview.addTo(map);
+      }
       const detail = own(detailUrl, j.maxzoom, 2);
       // The library paints its style's background on every tile it draws,
       // including the ones where this layer has no data — which covered the
@@ -1751,9 +1801,8 @@ let map = null, routeBounds = null;
         street.on("add", () => { if (ownOnly) setTimeout(hideStreet, 0); });
       }
       window.addEventListener("offline", useOwn);
-      draw();
-    })
-    .catch(() => {});
+      return true;
+  }
 })();
 
 // When the map is manually resized, Leaflet needs telling to re-measure itself and
@@ -2658,8 +2707,9 @@ if (map && typeof ResizeObserver !== "undefined"){
   const len = s => s == null ? "" : s < 60 ? Math.round(s) + "s" : Math.floor(s / 60) + ":" + String(Math.round(s % 60)).padStart(2, "0");
   const badge = p => p.video ? `<span class="gal-play">▶ ${len(p.secs)}</span>` : "";
 
-  fetch(DIR + "gallery.json", { cache: "no-store" })
-    .then(r => r.ok ? r.json() : null)
+  const COPY = window.OFFLINE_COPY;
+  (COPY ? Promise.resolve(COPY.gallery || null)
+        : fetch(DIR + "gallery.json", { cache: "no-store" }).then(r => r.ok ? r.json() : null))
     .then(j => {
       if (!(j && j.photos && j.photos.length)) return;
       G = window.TRIP_GALLERY = j.photos;
@@ -2707,7 +2757,7 @@ if (map && typeof ResizeObserver !== "undefined"){
       const k = e.target.closest(".gal-kind button"); if (k) return setKind(k.dataset.k);
       const c = e.target.closest(".gal-cell");
       if (c) return openViewer(+c.dataset.i, [...$("photosPanel").querySelectorAll(".gal-cell:not([hidden])")].map(x => +x.dataset.i));
-      if (e.target.closest(".gal-maplink")) { window.__mapMode && window.__mapMode("photos"); window.__activateTab && window.__activateTab("map"); }
+      if (e.target.closest(".gal-maplink")) { window.__mapMode && window.__mapMode(kind === "video" ? "videos" : "photos"); window.__activateTab && window.__activateTab("map"); }
     });
   }
 
