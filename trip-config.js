@@ -1,4 +1,4 @@
-/* Expedition Log — keepsake, made by scripts/make-keepsake.js on 2026-11-06.
+/* Expedition Log — keepsake since 2026-11-01, made by scripts/make-keepsake.js.
    The trip is over. This is the memory of it, with the details used during
    the trip taken out; the full trip is trips/<name>/trip-config.js in the repo. */
 
@@ -15,7 +15,7 @@ const TRIP = {
     "departureZone": "Europe/London",
     "destinationTimeZone": "Asia/Phnom_Penh",
     "destinationLabel": "Phnom Penh",
-    "updated": "2026-11-06",
+    "updated": "2026-11-11",
     "audience": "at-home"
   },
   "theme": {
@@ -838,13 +838,12 @@ const TRIP = {
     "riverside": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Riverside_Park%2C_Phnom_Penh.jpg/1920px-Riverside_Park%2C_Phnom_Penh.jpg",
     "cuchi": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/A_Part_Of_Cu_Chi_Tunnels.jpg/1920px-A_Part_Of_Cu_Chi_Tunnels.jpg",
     "emirates": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Emirates_A380_A6-EDM.jpg/1920px-Emirates_A380_A6-EDM.jpg",
-    "gatwick": "https://upload.wikimedia.org/wikipedia/commons/2/21/Gatwick_Airport_%2850850159593%29.jpg",
-    "dubai": "https://upload.wikimedia.org/wikipedia/commons/1/10/Dubai_Skyline_2016.jpg",
-    "phnompenh": "https://upload.wikimedia.org/wikipedia/commons/8/84/Phnom_Penh_skyline_from_TK_district_Dec_2024.jpg",
-    "siemreap": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Front_porch_of_Wat_Damnak.jpg/3840px-Front_porch_of_Wat_Damnak.jpg",
-    "angkorwat": "https://upload.wikimedia.org/wikipedia/commons/4/41/Angkor_Wat.jpg",
-    "chiphat": "https://upload.wikimedia.org/wikipedia/commons/2/23/Cardamom_sunset.jpg",
-    "hcmc": "https://upload.wikimedia.org/wikipedia/commons/8/86/Ho_Chi_Minh_City%2C_City_Hall%2C_2020-01_CN-03.jpg"
+    "gatwick": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Gatwick_Airport_%2850850159593%29.jpg/1920px-Gatwick_Airport_%2850850159593%29.jpg",
+    "dubai": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Dubai_Skyline_2016.jpg/1920px-Dubai_Skyline_2016.jpg",
+    "phnompenh": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Phnom_Penh_skyline_from_TK_district_Dec_2024.jpg/1920px-Phnom_Penh_skyline_from_TK_district_Dec_2024.jpg",
+    "angkorwat": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Angkor_Wat.jpg/1920px-Angkor_Wat.jpg",
+    "chiphat": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Cardamom_sunset.jpg/1920px-Cardamom_sunset.jpg",
+    "hcmc": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Ho_Chi_Minh_City%2C_City_Hall%2C_2020-01_CN-03.jpg/1920px-Ho_Chi_Minh_City%2C_City_Hall%2C_2020-01_CN-03.jpg"
   },
   "maps": {
     "gatwick": "https://maps.google.com/?cid=13726001889933259878",
