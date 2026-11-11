@@ -40,7 +40,7 @@ const TRIP = {
   "phases": {
     "travel": {
       "label": "Travel day",
-      "colour": "#6B7A8F",
+      "colour": "#66758A",
       "text": "#47525F",
       "icon": "✈"
     },
@@ -844,6 +844,24 @@ const TRIP = {
     "angkorwat": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Angkor_Wat.jpg/1920px-Angkor_Wat.jpg",
     "chiphat": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Cardamom_sunset.jpg/1920px-Cardamom_sunset.jpg",
     "hcmc": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Ho_Chi_Minh_City%2C_City_Hall%2C_2020-01_CN-03.jpg/1920px-Ho_Chi_Minh_City%2C_City_Hall%2C_2020-01_CN-03.jpg"
+  },
+  "photoCredits": {
+    "burjkhalifa": "Gfilip · CC BY-SA 4.0",
+    "royalpalace": "Marcin Konsek · CC BY-SA 4.0",
+    "angkorsunrise": "Reinhard Onasch · CC BY-SA 3.0",
+    "nightmarket": "Mx. Granger · CC0",
+    "cardamoms": "Andyb3947 · CC BY-SA 4.0",
+    "cardamomriver": "Graham Maclachlan · CC BY-SA 3.0",
+    "cardamomtrail": "Graham Maclachlan · CC BY-SA 3.0",
+    "riverside": "Christophe95 · CC BY-SA 4.0",
+    "cuchi": "MinhVN123 · CC BY-SA 4.0",
+    "emirates": "Lasse Fuss · CC BY-SA 3.0",
+    "gatwick": "Mike McBey · CC BY 2.0",
+    "dubai": "Tonenight · CC BY-SA 4.0",
+    "phnompenh": "Looppty · CC BY-SA 4.0",
+    "angkorwat": "Bjørn Christian Tørrissen · CC BY-SA 4.0",
+    "chiphat": "Paxse · CC BY-SA 3.0",
+    "hcmc": "Steffen Schmitz · CC BY-SA 4.0"
   },
   "maps": {
     "gatwick": "https://maps.google.com/?cid=13726001889933259878",
