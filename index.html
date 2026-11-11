@@ -89,6 +89,9 @@
   .day-body { margin-top:10px; display:none; }
   .day-body.open { display:block; }
   .day-photo { width:100%; height:130px; object-fit:cover; border-radius:10px; margin-bottom:8px; }
+  .photo-credit { font-size:calc(11px * var(--fs)); line-height:1.3; color:var(--text-muted); margin:-4px 0 8px; text-align:right; }
+  .photo-credit a { color:inherit; }
+  .current-card .photo-credit { margin:4px 16px 0; }
   .day-summary { font-size:calc(16px * var(--fs)); line-height:1.5; margin:0 0 8px; color:var(--text-body); }
 
   .current-card { background:#fff; color:var(--text); border-radius:18px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.25); margin-top:14px; }
@@ -609,6 +612,29 @@ if (TRIP.keepsake && !TRIP.keepsake.quiet) {
 
 /* --- Small helpers -------------------------------------------------------- */
 const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+/* A day's photo at the size this screen can show. The config holds Wikimedia's
+   1920-wide thumbnail; a phone shows it about 400 points wide, so it gets the
+   960 one — a quarter of the data — and anything up to 1280 the 1280 one.
+   Only ever smaller than the config's, and only Wikimedia's standard widths. */
+const dayPhotoUrl = u => {
+  const m = /^(https:\/\/upload\.wikimedia\.org\/.+\/)(\d+)px-([^/]+)$/.exec(u || "");
+  if (!m) return u;
+  const need = Math.min(window.innerWidth || 1920, (window.screen && screen.width) || 1920) * Math.min(window.devicePixelRatio || 1, 2);
+  const w = [960, 1280, 1920].find(s => s >= need) || 1920;
+  return w < +m[2] ? m[1] + w + "px-" + m[3] : u;
+};
+/* Who took it. Most Wikimedia licences ask for the photographer to be named
+   where the picture is shown: TRIP.photoCredits holds "Jane Doe · CC BY-SA 4.0"
+   per photo (scripts/credit-day-photos.js, or the Builder's lookup), and the
+   line links to the picture's own page, which has the licence in full. */
+const dayPhotoCredit = key => {
+  const c = (TRIP.photoCredits || {})[key];
+  const m = /^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/(?:thumb\/)?[0-9a-f]\/[0-9a-f]{2}\/([^/]+)/.exec((TRIP.photos || {})[key] || "");
+  if (!c && !m) return "";
+  const text = "Photo: " + esc(c || "Wikimedia Commons");
+  return `<p class="photo-credit">${m ? `<a href="https://commons.wikimedia.org/wiki/File:${esc(m[1])}" target="_blank" rel="noreferrer">${text}</a>` : text}</p>`;
+};
 const $  = id => document.getElementById(id);
 // A link the config gives as a relative path ("tickets/x.pdf") is a file in the
 // trip's own folder, so resolve it there. Live that folder is the site root and
@@ -1350,7 +1376,7 @@ function destTodayOf(d){
   const photo = currentDay.photo && TRIP.photos ? TRIP.photos[currentDay.photo] : null;
   $("currentCard").innerHTML = `
     <div class="current-card">
-      ${photo ? `<img src="${esc(photo)}" alt="${tokEsc(currentDay.loc)}">` : ""}
+      ${photo ? `<img src="${esc(dayPhotoUrl(photo))}" alt="${tokEsc(currentDay.loc)}">${dayPhotoCredit(currentDay.photo)}` : ""}
       <div class="inner">
         <span class="phase-pill" style="background:${esc(p.colour)}">${esc(p.icon)} ${esc(p.label)}</span>
         <h2 class="current-loc">${tokEsc(currentDay.loc)}</h2>
@@ -1394,7 +1420,7 @@ function destTodayOf(d){
             </div>
             <div class="day-loc">${tokEsc(d.loc)}</div>
             <div class="day-body${TRIP.keepsake ? " open" : ""}" id="body-${d.n}">
-              ${photo ? `<img class="day-photo" src="${esc(photo)}" alt="${tokEsc(d.loc)}" loading="lazy">` : ""}
+              ${photo ? `<img class="day-photo" src="${esc(dayPhotoUrl(photo))}" alt="${tokEsc(d.loc)}" loading="lazy">${dayPhotoCredit(d.photo)}` : ""}
               <p class="day-summary">${tokEsc(d.summary)}</p>
               ${d.fact ? `<p class="day-summary" style="font-size:calc(15px * var(--fs))"><b>Fun fact:</b> ${tokEsc(d.fact)}</p>` : ""}
               ${mapUrl ? `<a href="${esc(mapUrl)}" target="_blank" rel="noreferrer">View on Google Maps ↗</a>` : ""}
