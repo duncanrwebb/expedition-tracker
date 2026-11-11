@@ -630,7 +630,10 @@ const dayPhotoUrl = u => {
    line links to the picture's own page, which has the licence in full. */
 const dayPhotoCredit = key => {
   const c = (TRIP.photoCredits || {})[key];
-  const m = /^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/(?:thumb\/)?[0-9a-f]\/[0-9a-f]{2}\/([^/]+)/.exec((TRIP.photos || {})[key] || "");
+  // In an offline copy the photo is a file beside the app; the copy keeps the
+  // address it came from, so the credit still links to the picture's page.
+  const from = ((window.OFFLINE_COPY || {}).photoSources || {})[key] || (TRIP.photos || {})[key] || "";
+  const m = /^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/(?:thumb\/)?[0-9a-f]\/[0-9a-f]{2}\/([^/]+)/.exec(from);
   if (!c && !m) return "";
   const text = "Photo: " + esc(c || "Wikimedia Commons");
   return `<p class="photo-credit">${m ? `<a href="https://commons.wikimedia.org/wiki/File:${esc(m[1])}" target="_blank" rel="noreferrer">${text}</a>` : text}</p>`;
