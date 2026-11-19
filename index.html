@@ -1144,20 +1144,74 @@ function renderThereNow(){
 renderThereNow();
 setInterval(renderThereNow, 30000);
 
-// Open-Meteo needs no key and no account. Fails silently — it's a nice-to-have.
+/* Weather where they are: MET Norway's Locationforecast (api.met.no), free
+   for any use including paid-for services under CC BY 4.0, with the credit
+   shown under the line. (Open-Meteo, used before 19 Nov 2026, is free for
+   non-commercial use only.)
+
+   Their terms, which shape this:
+   - A browser cannot set an identifying User-Agent; a SIMPLE cross-origin GET
+     (no custom headers, so no preflight) identifies the site by the Origin
+     header the browser adds, which they accept for low-volume sites.
+   - At most 4 decimals in the coordinates.
+   - Never ask again before the answer's Expires time: each answer is kept
+     on the phone (localStorage) until then, and the line is redrawn from it
+     every 30 seconds by renderThereNow — only a fetch when it is due.
+   - Nothing fetched while the app is not being looked at.
+   Fails silently — it's a nice-to-have. */
+const WX_KEY = "met-weather-v1";
+let wxFetching = false;
+function wxDescribe(sym){
+  const s = String(sym || "").replace(/_(day|night|polartwilight)$/, "");
+  if (/thunder/.test(s)) return "thunderstorms ⛈";
+  if (/sleet/.test(s)) return "sleet 🌨";
+  if (/snow/.test(s)) return (/^light/.test(s) ? "light snow" : /^heavy/.test(s) ? "heavy snow" : "snow") + " 🌨";
+  if (/showers/.test(s)) return (/^heavy/.test(s) ? "heavy showers" : "showers") + " 🌦";
+  if (/rain/.test(s)) return (/^light/.test(s) ? "light rain" : /^heavy/.test(s) ? "heavy rain" : "rain") + " 🌧";
+  return { clearsky:"clear ☀️", fair:"mostly clear 🌤", partlycloudy:"partly cloudy ⛅", cloudy:"overcast ☁️", fog:"foggy 🌫" }[s] || "";
+}
+function wxShow(j){
+  const w = $("weatherLine");
+  const ts = j && j.properties && j.properties.timeseries;
+  if (!w || !ts || !ts.length) return;
+  const now = Date.now();
+  // The forecast hour nearest now (the first entry is often the hour just gone).
+  let best = ts[0];
+  for (const e of ts) if (Math.abs(Date.parse(e.time) - now) < Math.abs(Date.parse(best.time) - now)) best = e;
+  if (Math.abs(Date.parse(best.time) - now) > 3 * 3600e3) return;   // too old to call "now"
+  const d = best.data || {}, inst = (d.instant || {}).details || {};
+  const sym = ((d.next_1_hours || d.next_6_hours || {}).summary || {}).symbol_code;
+  if (inst.air_temperature == null) return;
+  const desc = wxDescribe(sym);
+  w.innerHTML = `🌡 ${Math.round(inst.air_temperature)}°C${desc ? " and " + desc : ""}` +
+    (inst.relative_humidity != null ? ` · 💧 ${Math.round(inst.relative_humidity)}% humidity` : "") +
+    `<div style="font-size:calc(11px * var(--fs));opacity:.7;margin-top:2px">Weather: <a href="https://www.met.no/en" target="_blank" rel="noreferrer">MET Norway</a>, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a></div>`;
+}
 async function loadWeather(){
-  if (!currentDay || currentDay.lat == null) return;
+  if (!currentDay || currentDay.lat == null || currentDay.lng == null) return;
+  const lat = (+currentDay.lat).toFixed(4), lon = (+currentDay.lng).toFixed(4), at = lat + "," + lon;
+  let kept = null;
+  try { kept = JSON.parse(localStorage.getItem(WX_KEY) || "null"); } catch(e){}
+  if (kept && kept.at === at) wxShow(kept.data);
+  const due = !kept || kept.at !== at || Date.now() >= (kept.expires || 0);
+  if (!due || wxFetching || document.visibilityState === "hidden" || navigator.onLine === false) return;
+  wxFetching = true;
   try {
-    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${currentDay.lat}&longitude=${currentDay.lng}&current=temperature_2m,relative_humidity_2m,weather_code`);
-    if (!r.ok) return;
-    const j = await r.json(), c = j.current;
-    if (!c) return;
-    const codes = {0:"clear ☀️",1:"mostly clear 🌤",2:"partly cloudy ⛅",3:"overcast ☁️",45:"foggy 🌫",48:"foggy 🌫",
-      51:"light drizzle 🌦",53:"drizzle 🌦",55:"drizzle 🌦",61:"light rain 🌧",63:"rain 🌧",65:"heavy rain 🌧",
-      80:"showers 🌦",81:"showers 🌦",82:"heavy showers ⛈",95:"thunderstorms ⛈",96:"thunderstorms ⛈",99:"thunderstorms ⛈"};
-    const w = $("weatherLine");
-    if (w) w.innerHTML = `🌡 ${Math.round(c.temperature_2m)}°C and ${codes[c.weather_code]||"—"} · 💧 ${c.relative_humidity_2m}% humidity`;
-  } catch(e){}
+    const r = await fetch(`https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat}&lon=${lon}`);
+    if (!r.ok) {
+      // Throttled or refused: leave it alone for an hour rather than retry every 30 seconds.
+      if (kept) { kept.expires = Date.now() + 3600e3; try { localStorage.setItem(WX_KEY, JSON.stringify(kept)); } catch(e){} }
+      else try { localStorage.setItem(WX_KEY, JSON.stringify({ at, expires: Date.now() + 3600e3, data: null })); } catch(e){}
+      return;
+    }
+    const data = await r.json();
+    const exp = Date.parse(r.headers.get("Expires") || "");
+    // Expires is a CORS-safelisted header, so the page can read it; if not, half an hour.
+    const expires = Math.max(Date.now() + 10 * 60e3, isNaN(exp) ? Date.now() + 30 * 60e3 : exp);
+    try { localStorage.setItem(WX_KEY, JSON.stringify({ at, expires, data })); } catch(e){}
+    wxShow(data);
+  } catch(e){
+  } finally { wxFetching = false; }
 }
 
 /* --- Quiet periods --------------------------------------------------------

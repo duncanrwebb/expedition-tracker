@@ -17,7 +17,7 @@
    - Live data (weather, flight status) is never cached. Stale weather shown as
      current is worse than no weather.
 */
-const CACHE = "expedition-v2-24";
+const CACHE = "expedition-v2-25";
 // The trip's own map, saved by the "Save map for offline" button. Kept apart
 // from CACHE so an app update does not throw away tens of MB someone chose to
 // download on wifi.
@@ -51,7 +51,7 @@ self.addEventListener("activate", e => {
 });
 
 const NEVER_CACHE = [
-  "api.open-meteo.com",      // live weather
+  "api.met.no",              // live weather (kept by the page itself, till its Expires)
   "aerodatabox.p.rapidapi.com", // live flight status
   "nominatim.openstreetmap.org", // setup-tool lookups
   "arcgis.com",              // Hybrid (satellite) view: Esri's terms rule out keeping its tiles
