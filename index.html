@@ -2105,9 +2105,9 @@ if (map && typeof ResizeObserver !== "undefined"){
       <p id="liveCheckedNote" class="placeholder" style="font-size:calc(12px * var(--fs));margin:0 0 10px;">${liveNote()}</p>
       ${rows}
       ${LIVE_ON
-        // Required by the AeroDataBox plan the live status comes from (RapidAPI
-        // BASIC: "Terms of Use: Attribution — required").
-        ? `<p class="placeholder" style="font-size:calc(12px * var(--fs));margin:10px 0 0">Live flight data by <a href="https://aerodatabox.com" target="_blank" rel="noreferrer">AeroDataBox</a></p>` : ""}
+        // Required on the free plan, kept on a paid one. Their terms (5.4) say
+        // the link must not be "noreferrer", so it is only "noopener".
+        ? `<p class="placeholder" style="font-size:calc(12px * var(--fs));margin:10px 0 0">Live flight data by <a href="https://aerodatabox.com" target="_blank" rel="noopener">AeroDataBox</a></p>` : ""}
       ${costLine("flights")}${costLine("seats")}</div>`;
   }
 
