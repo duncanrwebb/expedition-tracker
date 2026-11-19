@@ -1684,12 +1684,13 @@ let map = null, routeBounds = null;
    route works with no signal, zoomed in to street level. The world map is not
    saved — it is only for zoomed out — and the satellite view stays online-only.
 
-   No map of its own (a preview, a failed cut): OpenStreetMap's tiles instead,
+   No map of its own (a preview, the Builder, a failed cut): the light world
+   map, map-world.pmtiles beside the page, if it is there — the Builder has
+   one (sync-builder-host.sh), and so does the repo for a local preview — so
+   place names are in English there too; else OpenStreetMap's tiles,
    map.__streetFallback. */
 (function(){
   if (!map) return;
-  const fallback = () => map.__streetFallback();
-  if (window.__PREVIEW__) return fallback();
   const host = $("offlineMapCard");
   const MAP_CACHE = "trip-map-v1";
   const MAP_LIB = "https://cdn.jsdelivr.net/npm/protomaps-leaflet@5.1.0/dist/protomaps-leaflet.js";
@@ -1702,6 +1703,25 @@ let map = null, routeBounds = null;
     const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = fail;
     document.head.appendChild(s);
   });
+
+  const ATTR = '&copy; <a href="https://openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors, <a href="https://protomaps.com" target="_blank" rel="noreferrer">Protomaps</a>';
+  // Beneath Leaflet's own tile pane (z-index 200), so the Hybrid view's
+  // tiles cover it when that is chosen.
+  const ownLayer = (u, maxz, z) => {
+    if (!map.getPane("ownMap")) map.createPane("ownMap").style.zIndex = 150;
+    return protomapsL.leafletLayer({ url: u, flavor: "light", lang: "en", maxDataZoom: maxz, pane: "ownMap", zIndex: z, attribution: ATTR });
+  };
+
+  let fellBack = false;
+  function fallback(){
+    if (fellBack) return; fellBack = true;
+    const u = new URL("map-world.pmtiles", location.href).href;
+    fetch(u, { headers: { Range: "bytes=0-0" } })
+      .then(r => { if (r.status !== 206) throw new Error("no world map"); return loadScript(MAP_LIB); })
+      .then(() => { if (typeof protomapsL === "undefined") throw new Error("no map library"); ownLayer(u, 5, 0).addTo(map.__street); })
+      .catch(() => map.__streetFallback());
+  }
+  if (window.__PREVIEW__) return fallback();
 
   async function saved(){
     try {
@@ -1818,12 +1838,7 @@ ${document.getElementById("mapTypeSat") ? `<p class="placeholder" style="font-si
   // the files themselves.
   function show(j, detailUrl, overviewUrl, worldUrl){
       if (typeof protomapsL === "undefined") return false;
-      // Beneath Leaflet's own tile pane (z-index 200), so the Hybrid view's
-      // tiles cover it when that is chosen.
-      map.createPane("ownMap").style.zIndex = 150;
-      const group = map.__street;
-      const own = (u, maxz, z) => protomapsL.leafletLayer({ url: u, flavor: "light", lang: "en", maxDataZoom: maxz, pane: "ownMap", zIndex: z,
-        attribution: '&copy; <a href="https://openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors, <a href="https://protomaps.com" target="_blank" rel="noreferrer">Protomaps</a>' });
+      const group = map.__street, own = ownLayer;
       // A light map of the whole world beneath (make-offline-map.js), so
       // nothing beyond the trip's area is grey — a flight home ran off into it.
       if (worldUrl) own(worldUrl, j.world.maxzoom, 0).addTo(group);
