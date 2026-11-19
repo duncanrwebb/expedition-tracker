@@ -1461,32 +1461,49 @@ let map = null, routeBounds = null;
   map = L.map("map", { scrollWheelZoom:false });
   window.__tripMap = map;   // so a text-size change can ask it to re-measure
   L.Popup.mergeOptions({ closeButton:false });
-  const streetLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-    { attribution:"&copy; Esri, OpenStreetMap contributors", maxZoom:18 }).addTo(map);
-  // "Hybrid" — satellite imagery plus a labels overlay (place names, roads, borders),
-  // grouped so the toggle adds/removes both together. Plain satellite imagery on its
-  // own is hard to read anywhere without an obvious landmark.
-  const hybridLayer = L.layerGroup([
-    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      { attribution:"&copy; Esri, Maxar, Earthstar Geographics", maxZoom:18 }),
-    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
-      { attribution:"&copy; Esri", maxZoom:18 }),
-  ]);
-
-  // Map / Hybrid toggle, styled to match the app's own theme (not a Leaflet anchor
-  // control, so it can't be caught by viewers that intercept in-page hash links)
-  const mapTypeControl = L.control({ position:"topright" });
-  mapTypeControl.onAdd = function(){
-    const div = L.DomUtil.create("div");
-    L.DomEvent.disableClickPropagation(div);
-    div.style.cssText = "display:flex;background:#fff;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.2);overflow:hidden;font-family:Inter,sans-serif;font-size:calc(13px * var(--fs));font-weight:600;";
-    div.innerHTML = `
-      <button type="button" id="mapTypeStreet" style="border:none;padding:8px 14px;cursor:pointer;">Map</button>
-      <button type="button" id="mapTypeSat" style="border:none;padding:8px 14px;cursor:pointer;">Hybrid</button>`;
-    return div;
+  /* THE STREET MAP is the trip's own (OpenStreetMap data via Protomaps, made at
+     publish by make-offline-map.js and hosted on the trip's own site), drawn
+     into this group by the "trip's own map" code further down. It is ours to
+     use commercially with a credit, costs nothing per view, and is the same
+     map with or without signal. Where a trip has none — a preview, the
+     Builder, a publish whose map cut failed — OpenStreetMap's own tiles stand
+     in (fine for that light use under their tile policy, with the credit).
+     Esri's street map is no longer used: it needs a paid account to be used
+     in a product people pay for. */
+  const streetLayer = L.layerGroup().addTo(map);
+  map.__street = streetLayer;
+  map.__streetFallback = () => {
+    if (streetLayer.getLayers().length) return;
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19,
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors' }).addTo(streetLayer);
   };
-  mapTypeControl.addTo(map);
-  map.whenReady(()=>{
+
+  /* "Hybrid" — satellite imagery plus a labels overlay (place names, roads,
+     borders), grouped so the toggle adds/removes both together. Esri's, under
+     an ArcGIS Location Platform key, which publish-trip.sh writes into the site
+     as map-keys.json from /etc/expedition-tracker/esri.key (VPS-SETUP.md §18).
+     No key, no Hybrid button: the plain map is complete on its own. */
+  function addHybrid(key){
+    const t = encodeURIComponent(key);
+    const hybridLayer = L.layerGroup([
+      L.tileLayer("https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=" + t,
+        { attribution:'Powered by <a href="https://www.esri.com" target="_blank" rel="noreferrer">Esri</a> &copy; Esri, Maxar, Earthstar Geographics', maxZoom:18 }),
+      L.tileLayer("https://ibasemaps-api.arcgis.com/arcgis/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}?token=" + t,
+        { maxZoom:18 }),
+    ]);
+    // Map / Hybrid toggle, styled to match the app's own theme (not a Leaflet anchor
+    // control, so it can't be caught by viewers that intercept in-page hash links)
+    const mapTypeControl = L.control({ position:"topright" });
+    mapTypeControl.onAdd = function(){
+      const div = L.DomUtil.create("div");
+      L.DomEvent.disableClickPropagation(div);
+      div.style.cssText = "display:flex;background:#fff;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.2);overflow:hidden;font-family:Inter,sans-serif;font-size:calc(13px * var(--fs));font-weight:600;";
+      div.innerHTML = `
+        <button type="button" id="mapTypeStreet" style="border:none;padding:8px 14px;cursor:pointer;">Map</button>
+        <button type="button" id="mapTypeSat" style="border:none;padding:8px 14px;cursor:pointer;">Hybrid</button>`;
+      return div;
+    };
+    mapTypeControl.addTo(map);
     const streetBtn = document.getElementById("mapTypeStreet");
     const satBtn = document.getElementById("mapTypeSat");
     const onStyle = "border:none;padding:8px 14px;cursor:pointer;background:var(--primary);color:#fff;";
@@ -1500,8 +1517,12 @@ let map = null, routeBounds = null;
     streetBtn.addEventListener("click", ()=>{ map.removeLayer(hybridLayer); map.addLayer(streetLayer); setActive("street"); });
     satBtn.addEventListener("click", ()=>{ map.removeLayer(streetLayer); map.addLayer(hybridLayer); setActive("sat"); });
     setActive("street");
-  });
-  map.__street = streetLayer;
+  }
+  if (!window.OFFLINE_COPY && !window.__PREVIEW__)
+    fetch(new URL(window.TRIP_DIR + "map-keys.json", location.href).href, { cache:"no-store" })
+      .then(r => r.ok ? r.json() : null)
+      .then(k => { if (k && typeof k.esri === "string" && k.esri) addHybrid(k.esri); })
+      .catch(() => {});
 
   const layers = {};
   Object.keys(PHASES).forEach(k => layers[k] = L.layerGroup().addTo(map));
@@ -1650,30 +1671,32 @@ let map = null, routeBounds = null;
   });
 })();
 
-/* --- The map, offline -------------------------------------------------------
-   A trip's site can carry its own map: a cut of OpenStreetMap data round every
-   place it stops (scripts/make-offline-map.js, at publish), described by
+/* --- The trip's own map ------------------------------------------------------
+   Each trip's site carries its own map: a cut of OpenStreetMap data round
+   every place it stops (scripts/make-offline-map.js, at publish), described by
    offline-map.json: street-level squares round each stop, over a lighter
    overview of the whole route area (the squares alone left grey gaps between
-   stops when zoomed out).
+   stops when zoomed out), over a light map of the whole world.
 
-   It sits UNDER the usual map. With signal, Esri's map loads on top and looks
-   as it always has; without, Esri's tiles fail and ours shows through wherever
-   they are missing — no guessing whether there is signal. A card under the map
-   saves both files on the phone; the service worker then serves them from
-   there (mapPiece in sw.js), so the whole route works with no signal, zoomed
-   in to street level.
+   It IS the street map (the group map.__street), with or without signal. A
+   card under the map saves the squares and the overview on the phone; the
+   service worker then serves them from there (mapPiece in sw.js), so the whole
+   route works with no signal, zoomed in to street level. The world map is not
+   saved — it is only for zoomed out — and the satellite view stays online-only.
 
-   The usual map (Esri's) may not be saved ahead of time under its terms, which
-   is why this is our own. The satellite view stays online-only. */
+   No map of its own (a preview, a failed cut): OpenStreetMap's tiles instead,
+   map.__streetFallback. */
 (function(){
-  if (!map || window.__PREVIEW__) return;
+  if (!map) return;
+  const fallback = () => map.__streetFallback();
+  if (window.__PREVIEW__) return fallback();
   const host = $("offlineMapCard");
   const MAP_CACHE = "trip-map-v1";
   const MAP_LIB = "https://cdn.jsdelivr.net/npm/protomaps-leaflet@5.1.0/dist/protomaps-leaflet.js";
   const JSON_URL = new URL(window.TRIP_DIR + "offline-map.json", location.href).href;
   const mb = n => (n / 1e6).toFixed(n < 1e7 ? 1 : 0) + " MB";
   let info = null, urls = [];
+  const saveBytes = () => info.bytes + (info.overview ? info.overview.bytes : 0);
 
   const loadScript = src => new Promise((ok, fail) => {
     const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = fail;
@@ -1697,11 +1720,11 @@ let map = null, routeBounds = null;
         ? `<p class="placeholder">Saving the map… ${pct != null ? pct + "%" : ""} Keep the app open until it finishes.</p>`
         : has
           ? `<p class="placeholder"><b>Saved on this phone.</b> The whole route works without signal, down to street level.</p>
-             <button type="button" class="cal-add" id="offlineMapRemove">Remove it (frees ${mb(info.totalBytes || info.bytes)})</button>`
-          : `<p class="placeholder">With signal the map works as normal. To have it with <b>no signal</b> too, save it to this phone — ${mb(info.totalBytes || info.bytes)}, best on wifi before you go.</p>
+             <button type="button" class="cal-add" id="offlineMapRemove">Remove it (frees ${mb(saveBytes())})</button>`
+          : `<p class="placeholder">With signal the map works as normal. To have it with <b>no signal</b> too, save it to this phone — ${mb(saveBytes())}, best on wifi before you go.</p>
              <button type="button" class="card-btn" id="offlineMapSave">Save map for offline</button>
              ${state === "failed" ? `<p class="placeholder" style="color:var(--alert)">That didn't finish — check the connection and try again.</p>` : ""}`}
-      <p class="placeholder" style="font-size:calc(12px * var(--fs));margin-top:8px">Without signal the map is OpenStreetMap's (via Protomaps), so it looks a little different. The Hybrid (satellite) view needs signal.</p>
+${document.getElementById("mapTypeSat") ? `<p class="placeholder" style="font-size:calc(12px * var(--fs));margin-top:8px">The Hybrid (satellite) view needs signal.</p>` : ""}
     </div>`;
     const save = $("offlineMapSave"), remove = $("offlineMapRemove");
     if (save) save.addEventListener("click", saveMap);
@@ -1716,7 +1739,7 @@ let map = null, routeBounds = null;
   async function saveMap(){
     draw("saving", 0);
     try {
-      const total = info.totalBytes || info.bytes;
+      const total = saveBytes();
       const blobs = [];
       let got = 0, shown = -1;
       for (const u of urls){
@@ -1758,7 +1781,7 @@ let map = null, routeBounds = null;
      back into bytes once and read from memory. */
   const COPY = window.OFFLINE_COPY;
   if (COPY) {
-    if (!COPY.map || !COPY.map.file) return;
+    if (!COPY.map || !COPY.map.file) return fallback();
     const fromDisk = name => loadScript(window.TRIP_DIR + name + ".js").then(() => {
       const s = atob(window.OFFLINE_MAP[name]), buf = new Uint8Array(s.length);
       for (let i = 0; i < s.length; i++) buf[i] = s.charCodeAt(i);
@@ -1770,8 +1793,8 @@ let map = null, routeBounds = null;
     loadScript(MAP_LIB)
       .then(() => Promise.all([fromDisk(COPY.map.file), COPY.map.overview ? fromDisk(COPY.map.overview.file) : null,
                                COPY.map.world ? fromDisk(COPY.map.world.file) : null]))
-      .then(([detail, overview, world]) => show(COPY.map, detail, overview, world))
-      .catch(() => {});
+      .then(([detail, overview, world]) => show(COPY.map, detail, overview, world) || fallback())
+      .catch(fallback);
     return;
   }
 
@@ -1779,33 +1802,35 @@ let map = null, routeBounds = null;
   fetch(JSON_URL, { cache: "no-store" })
     .then(r => r.ok ? r.json() : fromSaved(), fromSaved)
     .then(async j => {
-      if (!j || !j.file) return;
+      if (!j || !j.file) return fallback();
       info = j;
       const abs = f => new URL(window.TRIP_DIR + f, location.href).href;
       const detailUrl = abs(j.file), overviewUrl = j.overview ? abs(j.overview.file) : null;
+      const worldUrl = j.world ? abs(j.world.file) : null;
       urls = [detailUrl].concat(overviewUrl ? [overviewUrl] : []);
       await loadScript(MAP_LIB);
-      if (show(j, detailUrl, overviewUrl)) draw();
+      if (show(j, detailUrl, overviewUrl, worldUrl)) draw(); else fallback();
     })
-    .catch(() => {});
+    .catch(fallback);
 
   // Puts the trip's own map under the usual one. `detailUrl` and `overviewUrl`
   // are what the library reads: the files' addresses, or for a copy on a disk
   // the files themselves.
   function show(j, detailUrl, overviewUrl, worldUrl){
       if (typeof protomapsL === "undefined") return false;
-      // Beneath Leaflet's own tile pane (z-index 200), so Esri's map covers it
-      // whenever it loads.
+      // Beneath Leaflet's own tile pane (z-index 200), so the Hybrid view's
+      // tiles cover it when that is chosen.
       map.createPane("ownMap").style.zIndex = 150;
+      const group = map.__street;
       const own = (u, maxz, z) => protomapsL.leafletLayer({ url: u, flavor: "light", lang: "en", maxDataZoom: maxz, pane: "ownMap", zIndex: z,
         attribution: '&copy; <a href="https://openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors, <a href="https://protomaps.com" target="_blank" rel="noreferrer">Protomaps</a>' });
-      // A copy kept on a disk also has a light map of the whole world beneath
-      // (make-offline-map.js --world), so nothing beyond the trip's area is grey.
-      if (worldUrl) own(worldUrl, j.world.maxzoom, 0).addTo(map);
+      // A light map of the whole world beneath (make-offline-map.js), so
+      // nothing beyond the trip's area is grey — a flight home ran off into it.
+      if (worldUrl) own(worldUrl, j.world.maxzoom, 0).addTo(group);
       if (overviewUrl) {
         const overview = own(overviewUrl, j.overview.maxzoom, 1);
         if (worldUrl) overview.backgroundColor = undefined;
-        overview.addTo(map);
+        overview.addTo(group);
       }
       const detail = own(detailUrl, j.maxzoom, 2);
       // The library paints its style's background on every tile it draws,
@@ -1813,23 +1838,7 @@ let map = null, routeBounds = null;
       // overview beneath with grey between the stops. Without it, those parts
       // are see-through and the overview shows.
       if (overviewUrl) detail.backgroundColor = undefined;
-      detail.addTo(map);
-
-      /* With no signal, ours must show. Esri's layer sits on top, and Leaflet
-         keeps a failed tile's zoomed-out parent on screen, stretched — so in
-         airplane mode the map was Esri's old tiles blown up, over ours. Hide
-         Esri's street map once the phone is offline or one of its tiles fails,
-         for the rest of this visit; ours is complete, so nothing is lost. */
-      const street = map.__street;
-      let ownOnly = false;
-      const hideStreet = () => { const c = street && street.getContainer && street.getContainer(); if (c) c.style.visibility = "hidden"; };
-      const useOwn = () => { ownOnly = true; hideStreet(); };
-      if (street) {
-        if (navigator.onLine === false) useOwn();
-        street.on("tileerror", useOwn);
-        street.on("add", () => { if (ownOnly) setTimeout(hideStreet, 0); });
-      }
-      window.addEventListener("offline", useOwn);
+      detail.addTo(group);
       return true;
   }
 })();
