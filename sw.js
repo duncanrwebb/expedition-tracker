@@ -17,7 +17,7 @@
    - Live data (weather, flight status) is never cached. Stale weather shown as
      current is worse than no weather.
 */
-const CACHE = "expedition-v2-26";
+const CACHE = "expedition-v2-28";
 // The trip's own map, saved by the "Save map for offline" button. Kept apart
 // from CACHE so an app update does not throw away tens of MB someone chose to
 // download on wifi.

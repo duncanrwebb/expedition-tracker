@@ -1542,8 +1542,11 @@ let map = null, routeBounds = null;
     const hybridLayer = L.layerGroup([
       L.tileLayer("https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=" + t,
         { attribution:'Powered by <a href="https://www.esri.com" target="_blank" rel="noreferrer">Esri</a> &copy; Esri, Maxar, Earthstar Geographics', maxZoom:18 }),
-      L.tileLayer("https://ibasemaps-api.arcgis.com/arcgis/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}?token=" + t,
-        { maxZoom:18 }),
+      // The names on top: Esri's static basemap tiles service (the old
+      // Reference/World_Boundaries_and_Places path is 404 under a Location
+      // Platform key). Its tiles are 512px, hence tileSize/zoomOffset. English.
+      L.tileLayer("https://static-map-tiles-api.arcgis.com/arcgis/rest/services/static-basemap-tiles-service/v1/arcgis/imagery/labels/static/tile/{z}/{y}/{x}?token=" + t,
+        { maxZoom:18, minZoom:1, tileSize:512, zoomOffset:-1 }),
     ]);
     // Map / Hybrid toggle, styled to match the app's own theme (not a Leaflet anchor
     // control, so it can't be caught by viewers that intercept in-page hash links)
