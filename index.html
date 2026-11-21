@@ -21,7 +21,7 @@
 
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust:100%; }
-  body { margin:0; font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); padding-bottom:40px; }
+  body { margin:0; font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); padding-bottom:calc(var(--tabbar-h, 70px) + 40px); }
   a { color:var(--alert); }
 
   .hero { background:linear-gradient(180deg,var(--primary) 0%,var(--primary-deep) 100%); color:var(--bg); padding:28px 20px 24px; border-radius:24px; margin-top:2px; }
@@ -33,8 +33,13 @@
   .progress-fill { height:100%; background:var(--accent); border-radius:8px; transition:width .4s ease; }
   main { padding:22px 16px 0; max-width:640px; margin:0 auto; }
 
-  .tabbar-wrap { position:sticky; top:0; z-index:20; display:flex; align-items:center; background:var(--bg); border-bottom:1.5px solid var(--border); }
-  .tabbar-wrap .tabbar { flex:1; min-width:0; border-bottom:0; }
+  /* The top strip: which trip this is, and the text-size button. The sections
+     themselves are in the bar at the bottom (.tabbar), where a thumb reaches
+     them and where every one stays on screen at the largest text size. */
+  .tabbar-wrap { position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:10px; background:var(--bg); border-bottom:1.5px solid var(--border);
+    padding:6px 10px 6px 16px; padding-top:max(6px, env(safe-area-inset-top)); }
+  .app-title { flex:1; min-width:0; font-family:'Fraunces',serif; font-weight:700; font-size:calc(17px * var(--fs)); color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   /* Deliberately not scaled with --fs: it has to stay findable by exactly the
      people whose text is currently too small to read. */
   .textsize-btn { flex-shrink:0; margin-right:10px; min-width:44px; min-height:44px; border-radius:22px;
@@ -50,10 +55,60 @@
     cursor:pointer; font-family:'Fraunces',Georgia,serif; font-weight:700; color:var(--text-body); line-height:1; }
   .textsize-panel button[aria-pressed="true"] { background:var(--primary); border-color:var(--primary); color:var(--bg); }
   .textsize-panel p { font-size:15px; margin:10px 0 0; color:var(--text-muted); line-height:1.45; }
-  .tabbar { position:relative; display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; background:var(--bg); border-bottom:1.5px solid var(--border); padding:10px 12px; scrollbar-width:none; }
-  .tabbar::-webkit-scrollbar { display:none; }
-  .tab-btn { flex-shrink:0; background:#fff; border:1.5px solid var(--border-strong); border-radius:20px; padding:9px 16px; font-size:calc(14px * var(--fs)); font-weight:600; color:var(--text-body); cursor:pointer; min-height:44px; font-family:'Inter',sans-serif; white-space:nowrap; }
-  .tab-btn[aria-selected="true"] { background:var(--primary); border-color:var(--primary); color:var(--bg); }
+  .textsize-panel h2.ts-sub { margin-top:14px; }
+  .textsize-panel .ts-opts.two { grid-template-columns:repeat(2,1fr); }
+  .textsize-panel .ts-opts.two button { min-height:48px; font-family:'Inter',sans-serif; font-size:15px; font-weight:600; }
+
+  /* High contrast (the Aa panel's Contrast: High). Black on white, thicker
+     borders, a black header card with yellow highlights, and no coloured pills:
+     every colour the trip sets is overridden, so !important throughout. */
+  html.hc {
+    --primary:#000 !important; --primary-deep:#000 !important; --accent:#FFD34D !important;
+    --bg:#fff !important; --surface:#fff !important; --text:#000 !important; --text-body:#000 !important;
+    --text-muted:#1F1F1F !important; --border:#000 !important; --border-strong:#000 !important;
+    --past:#8C8C8C !important; --success:#1E5631 !important; --warning:#5C4300 !important; --alert:#8B0000 !important;
+  }
+  html.hc body *:not(.leaflet-container):not(.leaflet-container *):not(#demoBar):not(#demoBar *):not(#demoSheet *) { border-width:2.5px; }
+  html.hc .hero { background:#000; }
+  html.hc .hero .subtitle, html.hc .countdown-lbl, html.hc .quiet-next { opacity:1; }
+  html.hc .countdown-box, html.hc .there-now, html.hc .key-date:not(.on-light *), html.hc .quiet { background:#000; border-color:#fff; }
+  html.hc .key-date.done { opacity:.7; }
+  html.hc .phase-pill { background:#fff !important; color:#000 !important; border:2px solid #000; }
+  html.hc .phase-tag { color:#000 !important; }
+  html.hc .fun-fact, html.hc .right-now { background:#fff; border-color:#000; }
+  html.hc .fun-fact b { color:#000; }
+  html.hc .current-card { box-shadow:none; border:2.5px solid #000; }
+  html.hc main a:not([class]) { text-decoration:underline; }
+  html.hc .tab-btn { color:#000; }
+  html.hc .more-sheet, html.hc .textsize-panel { box-shadow:none; }
+  /* Bottom bar: at most four slots (the three most-used sections, then More),
+     so none is ever off the edge. It used to be a sideways-scrolling row at the
+     top, where a 390px phone showed two and a half tabs and the largest text
+     size hid the Map. --tabbar-h is measured by the tabs code. */
+  .tabbar { position:fixed; left:0; right:0; bottom:0; z-index:30; background:var(--surface); border-top:1.5px solid var(--border);
+    padding:4px 4px calc(6px + env(safe-area-inset-bottom)); }
+  .tabbar-inner { display:flex; max-width:640px; margin:0 auto; }
+  .tabs-primary { display:flex; flex:1 1 0; min-width:0; }
+  .tab-btn { flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    background:none; border:0; border-radius:12px; padding:4px 2px; min-height:56px; cursor:pointer;
+    font-family:'Inter',sans-serif; font-size:calc(12px * var(--fs)); font-weight:600; color:var(--text-body); }
+  /* display:flex above would otherwise beat the hidden attribute: the Media tab
+     is hidden until the photos arrive. */
+  .tab-btn[hidden] { display:none; }
+  .tab-btn .t-ico { display:flex; padding:3px 14px; border-radius:14px; }
+  .tab-btn svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .tab-btn .t-lbl { max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tab-btn[aria-selected="true"], .tab-btn.on { color:var(--primary); font-weight:700; }
+  .tab-btn[aria-selected="true"] .t-ico, .tab-btn.on .t-ico { background:var(--primary); color:var(--bg); }
+  /* More: the other sections as a list above the bar. */
+  /* Above the demo's bar (9000) too, which sits over the tab bar in the demo. */
+  .more-sheet { position:fixed; left:8px; right:8px; bottom:calc(var(--tabbar-h, 70px) + 8px); z-index:9100; max-width:420px; margin-left:auto;
+    background:#fff; border:1.5px solid var(--border-strong); border-radius:16px; box-shadow:0 8px 28px rgba(0,0,0,.18); padding:6px;
+    max-height:calc(100vh - var(--tabbar-h, 70px) - 80px); overflow-y:auto; }
+  .more-sheet .tab-btn { width:100%; flex-direction:row; justify-content:flex-start; gap:12px; padding:6px 10px; min-height:52px;
+    font-size:calc(16px * var(--fs)); text-align:left; }
+  .more-sheet .tab-btn .t-ico { padding:6px; }
+  .more-sheet .tab-btn .t-lbl { white-space:normal; }
   .tab-panel { display:none; }
   .tab-panel.active { display:block; }
 
@@ -115,6 +170,11 @@
   /* At large text sizes a fixed 88px date column holds about four characters a
      line, so "Mon 20 Jul, ~10:40 UK time" stacked into four ragged rows. Put the
      date above the event instead, where it gets the full width. */
+  /* Key moments moved below today's card (during the trip): light, not on the dark header. */
+  .key-dates.on-light { margin-top:14px; }
+  .key-dates.on-light .tn-head { color:var(--primary) !important; }
+  .key-dates.on-light .key-date { background:var(--surface); border:1.5px solid var(--border); color:var(--text); }
+  .key-dates.on-light .key-date .kd-when { color:var(--primary); }
   .ts-large .key-date { flex-direction:column; gap:3px; }
   .ts-large .key-date .kd-when { flex:none; }
   .right-now { background:#EFF5EF; border-left:4px solid var(--success); border-radius:8px; padding:8px 12px; font-size:calc(16px * var(--fs)); line-height:1.5; margin:8px 0; }
@@ -246,7 +306,7 @@
   a:focus-visible, button:focus-visible, textarea:focus-visible, .day-card:focus-visible, .dot:focus-visible { outline:3px solid var(--primary); outline-offset:2px; border-radius:6px; }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
   @media print {
-    .tabbar-wrap, #infoCards, #map, #mapResizeHandle, .map-controls, #trekProgress, h3.section, #timeline, .note-input-row, #promptChip, .notes-actions, footer { display:none !important; }
+    .tabbar-wrap, .tabbar, .more-sheet, #infoCards, #map, #mapResizeHandle, .map-controls, #trekProgress, h3.section, #timeline, .note-input-row, #promptChip, .notes-actions, footer { display:none !important; }
     .tab-panel { display:none !important; }
     .tab-panel[data-tab="messages"] { display:block !important; }
     .notes-section { border:none; background:none; padding:0; }
@@ -259,12 +319,12 @@
 <body>
 
 <div class="tabbar-wrap">
-<nav class="tabbar" id="tabbar" role="tablist" aria-label="App sections"></nav>
-<!-- Outside the tablist on purpose: inside it, a screen reader announces this
-     as a sixth tab. -->
+<span class="app-title" id="appTitle"></span>
+<!-- Not in the tab bar on purpose: inside a tablist, a screen reader announces
+     this as another tab. -->
 <button type="button" class="textsize-btn" id="textSizeBtn" aria-haspopup="true"
-        aria-expanded="false" aria-controls="textSizePanel" aria-label="Text size">Aa</button>
-<div class="textsize-panel" id="textSizePanel" role="group" aria-label="Text size" hidden></div>
+        aria-expanded="false" aria-controls="textSizePanel" aria-label="Text size and contrast">Aa</button>
+<div class="textsize-panel" id="textSizePanel" role="group" aria-label="Text size and contrast" hidden></div>
 </div>
 
 <main>
@@ -349,6 +409,9 @@
 
   <footer id="footer"></footer>
 </main>
+
+<nav class="tabbar" id="tabbar" aria-label="App sections"></nav>
+<div class="more-sheet" id="moreSheet" role="tablist" aria-label="More sections" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="icon-art.js"></script>
@@ -738,6 +801,21 @@ function applyTextSize(v){
   applyTextSize(v);
 })();
 
+/* --- Contrast ----------------------------------------------------------------
+   "High" swaps the trip's own colours for black on white, with thicker borders
+   and a black header card with yellow highlights: for bright sun and for eyes
+   that find the cream-and-green hard going. Per viewer and per phone, like the
+   text size, and applied before the first render. The styles are under
+   html.hc in the stylesheet; they use !important because the trip's colours
+   are set inline on the root. Photos and the map are left as they are. */
+const CONTRAST_KEY = storeKey("contrast");
+function applyContrast(high){ document.documentElement.classList.toggle("hc", !!high); }
+(function(){
+  let v = null;
+  try { v = localStorage.getItem(CONTRAST_KEY); } catch(e){}
+  applyContrast(v === "high");
+})();
+
 function initTextSizeControl(){
   const btn = document.getElementById("textSizeBtn");
   const panel = document.getElementById("textSizePanel");
@@ -747,6 +825,9 @@ function initTextSizeControl(){
     panel.innerHTML = `<h2>Text size</h2><div class="ts-opts">` +
       TEXT_SIZES.map(t => `<button type="button" data-fs="${t.v}" aria-pressed="${t.v === current()}"
         aria-label="${t.label}" style="font-size:${Math.round(15 * t.v)}px">A</button>`).join("") +
+      `</div><h2 class="ts-sub">Contrast</h2><div class="ts-opts two">` +
+      [["standard", "Standard"], ["high", "High"]].map(([k, l]) =>
+        `<button type="button" data-contrast="${k}" aria-pressed="${(k === "high") === document.documentElement.classList.contains("hc")}">${l}</button>`).join("") +
       `</div><p>Saved on this phone only. Pinch to zoom still works too.</p>`;
     panel.querySelectorAll("[data-fs]").forEach(b => b.addEventListener("click", () => {
       const v = parseFloat(b.dataset.fs);
@@ -760,6 +841,14 @@ function initTextSizeControl(){
         o.setAttribute("aria-pressed", String(parseFloat(o.dataset.fs) === v)));
       // The map measures its box once; text reflow can change the space around it.
       if (window.__tripMap && window.__tripMap.invalidateSize) window.__tripMap.invalidateSize();
+    }));
+    panel.querySelectorAll("[data-contrast]").forEach(b => b.addEventListener("click", () => {
+      const high = b.dataset.contrast === "high";
+      applyContrast(high);
+      try { localStorage.setItem(CONTRAST_KEY, high ? "high" : "standard"); } catch(e){}
+      // In place, for the same reason as the sizes above.
+      panel.querySelectorAll("[data-contrast]").forEach(o =>
+        o.setAttribute("aria-pressed", String((o.dataset.contrast === "high") === high)));
     }));
   };
   const open = yes => {
@@ -1036,6 +1125,7 @@ async function updateLiveFlights(force){
 /* --- Header, progress, countdown ------------------------------------------ */
 $("eyebrow").textContent   = tok(TRIP.trip.eyebrow || "");
 $("pageTitle").textContent = IS_DEFAULT ? TRIP.trip.title : `${NAME}'s ${TRIP.trip.title}`;
+$("appTitle").textContent  = $("pageTitle").textContent;
 $("subtitle").textContent  = tok(TRIP.trip.subtitle || "");
 $("footer").textContent    = tok(TRIP.trip.footer || "");
 
@@ -1091,8 +1181,8 @@ function renderCountdown(){
   };
   let html = "";
   if (now < dep) html = `<div class="countdown-box"><div class="countdown-num">${fmt(dep-now)}</div><div class="countdown-lbl">until departure ✈️</div></div>`;
+  // During the trip, the day number is already the label over the progress bar.
   else if (end && now < end) html =
-    `<div class="countdown-box"><div class="countdown-num">${currentDayNum}</div><div class="countdown-lbl">day of the trip</div></div>` +
     `<div class="countdown-box"><div class="countdown-num">${fmt(end-now)}</div><div class="countdown-lbl">until due home 🏡</div></div>`;
   else html = `<div class="countdown-box"><div class="countdown-num">🏁</div><div class="countdown-lbl">trip over</div></div>`;
   row.innerHTML = html;
@@ -1141,8 +1231,9 @@ function renderThereNow(){
                  `<div id="weatherLine" style="margin-top:4px;opacity:.9"></div>`;
   loadWeather();
 }
-renderThereNow();
-setInterval(renderThereNow, 30000);
+// First drawn below the weather code, not here: loadWeather uses WX_KEY and
+// wxFetching, and calling it before their declarations threw, so the
+// temperature only appeared on the 30-second redraw.
 
 /* Weather where they are: MET Norway's Locationforecast (api.met.no), free
    for any use including paid-for services under CC BY 4.0, with the credit
@@ -1213,6 +1304,8 @@ async function loadWeather(){
   } catch(e){
   } finally { wxFetching = false; }
 }
+renderThereNow();
+setInterval(renderThereNow, 30000);
 
 /* --- Quiet periods --------------------------------------------------------
    The single most anxious stretch of a trip is the one where contact stops —
@@ -1442,6 +1535,14 @@ function destTodayOf(d){
         ${currentDay.fact ? `<div class="fun-fact"><b>Today's fact:</b> ${tokEsc(currentDay.fact)}</div>` : ""}
       </div>
     </div>`;
+  // During the trip "what's happening today" comes first. The key moments
+  // inside the header pushed this card below the first screen on a phone, so
+  // they move under it, onto the page's own background.
+  const kd = $("keyDates");
+  if (kd && kd.style.display !== "none"){
+    kd.classList.add("on-light");
+    $("currentCard").insertAdjacentElement("afterend", kd);
+  }
 })();
 
 /* --- Why these colours ---------------------------------------------------- */
@@ -1617,7 +1718,42 @@ let map = null, routeBounds = null;
   });
 
   routeBounds = L.latLngBounds(pts.map(d => [d.lat, d.lng])).pad(0.15);
-  map.fitBounds(routeBounds);
+
+  /* During the trip the map opens on today: today's stop, with yesterday's and
+     tomorrow's where they are close enough to matter. The whole route was the
+     opening view, and on a long trip that is half the world, with where they
+     are today a few pixels wide. Neighbours more than ~300km away are left
+     out, so the day after a long-haul flight frames the place they landed, not
+     the ocean in between. "Whole trip" is one tap away on the map. */
+  const today = status === "during" ? pts.find(d => d.n === currentDayNum) : null;
+  let todayFit = null;
+  if (today){
+    const here = L.latLng(today.lat, today.lng);
+    const near = pts.filter(d => Math.abs(d.n - today.n) <= 1 && here.distanceTo([d.lat, d.lng]) < 300e3);
+    const b = L.latLngBounds(near.map(d => [d.lat, d.lng]));
+    todayFit = () => b.getNorthEast().distanceTo(b.getSouthWest()) < 2000
+      // Kept clear of the "Show the whole trip" button along the bottom.
+      ? map.setView(here, 11) : map.fitBounds(b.pad(0.15), { maxZoom: 11, paddingTopLeft: [24, 24], paddingBottomRight: [24, 64] });
+  }
+  let tripView = todayFit ? "today" : "route";
+  const fitTrip = () => tripView === "today" && todayFit ? todayFit() : map.fitBounds(routeBounds);
+  window.__fitTrip = fitTrip;
+  if (todayFit){
+    const viewCtl = L.control({ position:"bottomleft" });
+    viewCtl.onAdd = function(){
+      const btn = L.DomUtil.create("button");
+      btn.type = "button"; btn.id = "mapViewBtn";
+      L.DomEvent.disableClickPropagation(btn);
+      btn.style.cssText = "border:none;border-radius:20px;background:#fff;color:var(--primary);box-shadow:0 2px 8px rgba(0,0,0,.2);" +
+        "font:600 calc(13px * var(--fs)) Inter,sans-serif;padding:8px 14px;min-height:40px;cursor:pointer;";
+      const label = () => { btn.textContent = tripView === "today" ? "Show the whole trip" : "Back to today"; };
+      label();
+      btn.addEventListener("click", () => { tripView = tripView === "today" ? "route" : "today"; label(); fitTrip(); });
+      return btn;
+    };
+    viewCtl.addTo(map);
+  }
+  fitTrip();
 
   // Phase filter chips
   $("mapControls").innerHTML =
@@ -1698,7 +1834,8 @@ let map = null, routeBounds = null;
     let mode = "trip", target = null;
     const fit = () => {
       if (target) { map.setView(target, 17); target = null; return; }
-      map.fitBounds(mode === "photos" ? photoBounds : mode === "videos" ? videoBounds : routeBounds);
+      if (mode === "trip") return fitTrip();
+      map.fitBounds(mode === "photos" ? photoBounds : videoBounds);
     };
     function setMode(m){
       if (m === "videos" && !seg.querySelector('[data-mode="videos"]')) m = "photos";
@@ -1714,6 +1851,7 @@ let map = null, routeBounds = null;
         Object.entries(layers).forEach(([k, l]) => { const c = ctl.querySelector(`.chip[data-phase="${k}"]`); if (!c || !c.classList.contains("off")) map.addLayer(l); });
       }
       filters.forEach(el => el.style.display = media ? "none" : "");
+      const vb = $("mapViewBtn"); if (vb) vb.style.display = media ? "none" : "";
       $("mapHeading").textContent = m === "photos" ? "Where the photos were taken" : m === "videos" ? "Where the videos were taken" : "Route map";
       try { localStorage.setItem(MODEKEY, m); } catch(e){}
     }
@@ -2656,7 +2794,8 @@ if (map && typeof ResizeObserver !== "undefined"){
         ${live?`<a class="card-btn link portal-btn" style="background:var(--success)" href="${esc(live)}" target="_blank" rel="noreferrer">🛰 View Live Tracker ↗</a>`:""}
         ${todayMap?`<a class="card-btn link portal-btn" style="background:#fff;color:var(--primary);border:1.5px solid var(--primary)" href="${esc(todayMap)}" target="_blank" rel="noreferrer">📍 Today's area on Google Maps ↗</a>`:""}
         ${L_.trackerPage?`<a class="card-btn link portal-btn" href="${esc(L_.trackerPage)}" target="_blank" rel="noreferrer">Tracker portal page ↗</a>`:""}
-        ${L_.messageBoard?`<a class="card-btn link portal-btn" style="background:var(--warning)" href="${esc(L_.messageBoard)}" target="_blank" rel="noreferrer">💬 Message Board ↗</a>`:""}
+        ${/* Outlined, like the Google Maps button: cream on the warning colour measured 4.3:1, and less on lighter palettes. */""}
+        ${L_.messageBoard?`<a class="card-btn link portal-btn" style="background:#fff;color:var(--primary);border:1.5px solid var(--primary)" href="${esc(L_.messageBoard)}" target="_blank" rel="noreferrer">💬 Message Board ↗</a>`:""}
       </div>
       ${L_.trackerNote?`<p class="placeholder" style="margin:12px 0 8px">${tokEsc(L_.trackerNote)}</p>`:""}</div>`;
   }
@@ -2942,19 +3081,19 @@ if (map && typeof ResizeObserver !== "undefined"){
 (function(){
   const TABKEY = storeKey("tab");
   const defs = [
-    { id:"overview",  label:"🧭 Overview" },
-    { id:"info",      label:"ℹ️ Info" },
-    { id:"bookings",  label:"🎟 Bookings", when:() => (TRIP.bookings||[]).some(b => !b.considering) },
-    { id:"eating",    label:"🍖 Eating", when:() => Array.isArray(TRIP.eating) && TRIP.eating.length > 0 },
-    { id:"roadstops", label:"🛣 On the way", when:() => Array.isArray(TRIP.roadStops) && TRIP.roadStops.length > 0 },
-    { id:"considering", label:"🤔 Considering", when:() => (TRIP.bookings||[]).some(b => b.considering) },
-    { id:"map",       label:"🗺️ Map",  when:() => !!map },
-    { id:"trek",      label:"🥾 Trek", when:() => !!(TRIP.trek && TRIP.trek.enabled) },
-    { id:"itinerary", label:"📅 Itinerary" },
-    { id:"messages",  label:"💬 Messages" },
+    { id:"overview",  label:"Overview" },
+    { id:"info",      label:"Info" },
+    { id:"bookings",  label:"Bookings", when:() => (TRIP.bookings||[]).some(b => !b.considering) },
+    { id:"eating",    label:"Eating", when:() => Array.isArray(TRIP.eating) && TRIP.eating.length > 0 },
+    { id:"roadstops", label:"On the way", when:() => Array.isArray(TRIP.roadStops) && TRIP.roadStops.length > 0 },
+    { id:"considering", label:"Considering", when:() => (TRIP.bookings||[]).some(b => b.considering) },
+    { id:"map",       label:"Map",  when:() => !!map },
+    { id:"trek",      label:"Trek", when:() => !!(TRIP.trek && TRIP.trek.enabled) },
+    { id:"itinerary", label:"Itinerary" },
+    { id:"messages",  label:"Messages" },
     // Known only once gallery.json has arrived, so the tab is there but
     // hidden until then.
-    { id:"photos",    label:"📷 Media", later:true },
+    { id:"photos",    label:"Media", later:true },
   ].filter(t => !t.when || t.when());
   /* The order, by the question each tab answers. First "where are they and
      what's the plan" — the itinerary is the backbone, so it comes straight
@@ -2972,22 +3111,71 @@ if (map && typeof ResizeObserver !== "undefined"){
     if (!defs.some(d => d.id === p.dataset.tab)) p.remove();
   });
 
-  $("tabbar").innerHTML = defs.map(t =>
-    `<button type="button" class="tab-btn" role="tab" data-tab="${t.id}" id="tabbtn-${t.id}"${t.later ? " hidden" : ""}>${t.label}</button>`).join("");
+  /* Line icons, drawn inline so they cost nothing offline and look the same on
+     every phone (emoji differ by make, and some older phones lack them). */
+  const ICON = {
+    overview:  '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+    itinerary: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    map:       '<path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/>',
+    trek:      '<path d="M3 20l6-10 4 6 3-4 5 8z"/>',
+    info:      '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+    bookings:  '<path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M14 7v10"/>',
+    eating:    '<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M16 21V3c-2 1-3 4-3 8h3"/>',
+    roadstops: '<path d="M8 3L5 21M16 3l3 18M12 4v3M12 11v3M12 18v2"/>',
+    considering: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17v.5"/>',
+    photos:    '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+    messages:  '<path d="M4 5h16v11H9l-5 4z"/>',
+    more:      '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
+  };
+  const btnHtml = (id, label, attrs) =>
+    `<button type="button" class="tab-btn" ${attrs}><span class="t-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id] || ICON.more}</svg></span><span class="t-lbl">${label}</span></button>`;
+  const tabHtml = t => btnHtml(t.id, t.label, `role="tab" data-tab="${t.id}" id="tabbtn-${t.id}"${t.later ? " hidden" : ""}`);
 
-  const buttons = [...document.querySelectorAll(".tab-btn")];
+  // The first three in ORDER get a place in the bar, the rest go under More.
+  // With four or fewer there is room for all of them and no More.
+  const primary = defs.length <= 4 ? defs : defs.slice(0, 3);
+  const extra   = defs.filter(d => !primary.includes(d));
+  $("tabbar").innerHTML = `<div class="tabbar-inner"><div class="tabs-primary" role="tablist" aria-label="App sections" style="flex-grow:${primary.length}">` +
+    primary.map(tabHtml).join("") + `</div>` +
+    (extra.length ? btnHtml("more", "More", `id="moreBtn" aria-haspopup="true" aria-expanded="false" aria-controls="moreSheet"`) : "") +
+    `</div>`;
+  $("moreSheet").innerHTML = extra.map(tabHtml).join("");
+
+  const buttons = [...document.querySelectorAll(".tab-btn[data-tab]")];
   const panels  = [...document.querySelectorAll(".tab-panel")];
+  const moreBtn = $("moreBtn"), sheet = $("moreSheet");
+
+  const openMore = yes => {
+    if (!moreBtn) return;
+    sheet.hidden = !yes;
+    moreBtn.setAttribute("aria-expanded", String(yes));
+    if (yes){ const f = sheet.querySelector('[aria-selected="true"]') || sheet.querySelector(".tab-btn:not([hidden])"); if (f) f.focus(); }
+  };
+  if (moreBtn){
+    moreBtn.addEventListener("click", () => openMore(sheet.hidden));
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && !sheet.hidden){ openMore(false); moreBtn.focus(); } });
+    document.addEventListener("click", e => { if (!sheet.hidden && !sheet.contains(e.target) && !moreBtn.contains(e.target)) openMore(false); });
+  }
+
+  // The page keeps clear of the bar, whatever height the text size gives it.
+  const bar = $("tabbar");
+  const measure = () => document.documentElement.style.setProperty("--tabbar-h", bar.offsetHeight + "px");
+  measure();
+  if (window.ResizeObserver) new ResizeObserver(measure).observe(bar);
+  else window.addEventListener("resize", measure);
 
   function activate(tab, opts){
     opts = opts || {};
     buttons.forEach(b => b.setAttribute("aria-selected", b.dataset.tab === tab ? "true" : "false"));
+    if (moreBtn) moreBtn.classList.toggle("on", extra.some(d => d.id === tab));
+    openMore(false);
     panels.forEach(p => p.classList.toggle("active", p.dataset.tab === tab));
     if (tab === "map" && map){
       // Leaflet can't measure a display:none container, and this panel was
       // hidden when the map was created — re-measure now it's visible.
       setTimeout(() => {
         // The map fits what it is showing: the route, or the photos.
-        map.invalidateSize(); if (window.__mapFit) window.__mapFit(); else if (routeBounds) map.fitBounds(routeBounds);
+        map.invalidateSize(); if (window.__mapFit) window.__mapFit(); else if (window.__fitTrip) window.__fitTrip();
         if (typeof window.__positionMapResizeHandle === "function") window.__positionMapResizeHandle();
       }, 50);
     }
@@ -3091,7 +3279,7 @@ if ("serviceWorker" in navigator) {
        local to #demoBar so the trip theme cannot reach in and the bar cannot
        leak out. */
     "#demoBar{--d-bg:#23272E;--d-fg:#E7E9EC;--d-mark:#F2B441;--d-line:rgba(231,233,236,.22);}",
-    "#demoBar{position:fixed;left:0;right:0;bottom:0;z-index:9000;background:var(--d-bg);",
+    "#demoBar{position:fixed;left:0;right:0;bottom:var(--tabbar-h,0px);z-index:9000;background:var(--d-bg);",
       "color:var(--d-fg);padding:10px 14px calc(10px + env(safe-area-inset-bottom));",
       "border-top:2px solid var(--d-mark);",
       "box-shadow:0 -4px 18px rgba(0,0,0,.28);font-family:'Inter',sans-serif;}",
@@ -3164,6 +3352,8 @@ if ("serviceWorker" in navigator) {
     "@media (min-width:1060px){",
       ":root{--demo-w:min(360px, 26vw);}",
       "body{padding-right:calc(var(--demo-w) + 44px);}",
+      // The app's tab bar stops short of the panel rather than running under it.
+      ".tabbar{right:calc(var(--demo-w) + 44px);}",
       "#demoBar{left:auto;right:22px;bottom:22px;border-radius:14px;",
         "width:var(--demo-w);",
         "max-height:calc(100vh - 44px);overflow-y:auto;",
@@ -3361,7 +3551,9 @@ if ("serviceWorker" in navigator) {
      the single place that decides which layout is in use. */
   function reserveSpace(){
     var full = bar.offsetWidth >= document.documentElement.clientWidth - 1;
-    document.body.style.paddingBottom = full ? (bar.offsetHeight + 24) + "px" : "";
+    // It sits on top of the app's tab bar, so clear both.
+    var tabs = document.getElementById("tabbar");
+    document.body.style.paddingBottom = full ? (bar.offsetHeight + (tabs ? tabs.offsetHeight : 0) + 24) + "px" : "";
   }
   reserveSpace();
   window.addEventListener("resize", reserveSpace);
