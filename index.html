@@ -90,16 +90,23 @@
   .tabbar-inner { display:flex; max-width:640px; margin:0 auto; }
   .tabs-primary { display:flex; flex:1 1 0; min-width:0; }
   .tab-btn { flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
-    background:none; border:0; border-radius:12px; padding:4px 2px; min-height:56px; cursor:pointer;
+    background:none; border:0; border-radius:12px; padding:4px 2px; min-height:52px; cursor:pointer;
     font-family:'Inter',sans-serif; font-size:calc(12px * var(--fs)); font-weight:600; color:var(--text-body); }
   /* display:flex above would otherwise beat the hidden attribute: the Media tab
      is hidden until the photos arrive. */
   .tab-btn[hidden] { display:none; }
-  .tab-btn .t-ico { display:flex; padding:3px 14px; border-radius:14px; }
-  .tab-btn svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .tab-btn .t-ico { display:flex; padding:2px 11px; border-radius:12px; }
+  .tab-btn svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .tab-btn .t-lbl { max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .tab-btn[aria-selected="true"], .tab-btn.on { color:var(--primary); font-weight:700; }
   .tab-btn[aria-selected="true"] .t-ico, .tab-btn.on .t-ico { background:var(--primary); color:var(--bg); }
+  /* The fourth section has a place in the bar at the two smaller text sizes and
+     moves under More at the two larger ones, where four labels and More would
+     not fit a 390px phone. It is drawn in both places; CSS picks one. */
+  .more-sheet .more-flex { display:none; }
+  .ts-large .tabbar .slot-flex { display:none; }
+  .ts-large .more-sheet .more-flex:not([hidden]) { display:flex; }
+  .ts-large .tabs-primary.has-flex { flex-grow:calc(var(--n) - 1) !important; }
   /* More: the other sections as a list above the bar. */
   /* Above the demo's bar (9000) too, which sits over the tab bar in the demo. */
   .more-sheet { position:fixed; left:8px; right:8px; bottom:calc(var(--tabbar-h, 70px) + 8px); z-index:9100; max-width:420px; margin-left:auto;
@@ -3100,9 +3107,9 @@ if (map && typeof ResizeObserver !== "undefined"){
      after the Overview, with the map and the trek. Then the practical: Info
      (stays, contacts), what's booked, where to eat. Messages last: it is for
      writing, not reading. A keepsake is the story of the trip, so its photos
-     come first, and Info — little more than the flights by then — near the end. */
+     come first, then where they were taken (the map), and Info — little more than the flights by then — near the end. */
   const ORDER = TRIP.keepsake
-    ? ["overview", "photos", "itinerary", "map", "trek", "bookings", "eating", "roadstops", "considering", "info", "messages"]
+    ? ["overview", "photos", "map", "itinerary", "trek", "bookings", "eating", "roadstops", "considering", "info", "messages"]
     : ["overview", "itinerary", "map", "trek", "info", "bookings", "eating", "roadstops", "considering", "photos", "messages"];
   defs.sort((x, y) => ORDER.indexOf(x.id) - ORDER.indexOf(y.id));
 
@@ -3131,15 +3138,18 @@ if (map && typeof ResizeObserver !== "undefined"){
     `<button type="button" class="tab-btn" ${attrs}><span class="t-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id] || ICON.more}</svg></span><span class="t-lbl">${label}</span></button>`;
   const tabHtml = t => btnHtml(t.id, t.label, `role="tab" data-tab="${t.id}" id="tabbtn-${t.id}"${t.later ? " hidden" : ""}`);
 
-  // The first three in ORDER get a place in the bar, the rest go under More.
-  // With four or fewer there is room for all of them and no More.
-  const primary = defs.length <= 4 ? defs : defs.slice(0, 3);
+  // The first four in ORDER get a place in the bar, the rest go under More.
+  // With four or fewer there is room for all of them and no More. With more,
+  // the fourth (flex) moves under More at the larger text sizes (CSS above).
+  const primary = defs.length <= 4 ? defs : defs.slice(0, 4);
+  const flex    = defs.length > 4 ? primary[3] : null;
   const extra   = defs.filter(d => !primary.includes(d));
-  $("tabbar").innerHTML = `<div class="tabbar-inner"><div class="tabs-primary" role="tablist" aria-label="App sections" style="flex-grow:${primary.length}">` +
-    primary.map(tabHtml).join("") + `</div>` +
+  $("tabbar").innerHTML = `<div class="tabbar-inner"><div class="tabs-primary${flex ? " has-flex" : ""}" role="tablist" aria-label="App sections" style="flex-grow:${primary.length};--n:${primary.length}">` +
+    primary.map(t => t === flex ? tabHtml(t).replace('class="tab-btn"', 'class="tab-btn slot-flex"') : tabHtml(t)).join("") + `</div>` +
     (extra.length ? btnHtml("more", "More", `id="moreBtn" aria-haspopup="true" aria-expanded="false" aria-controls="moreSheet"`) : "") +
     `</div>`;
-  $("moreSheet").innerHTML = extra.map(tabHtml).join("");
+  $("moreSheet").innerHTML = (flex ? btnHtml(flex.id, flex.label, `role="tab" data-tab="${flex.id}"${flex.later ? " hidden" : ""}`).replace('class="tab-btn"', 'class="tab-btn more-flex"') : "") +
+    extra.map(tabHtml).join("");
 
   const buttons = [...document.querySelectorAll(".tab-btn[data-tab]")];
   const panels  = [...document.querySelectorAll(".tab-panel")];
@@ -3167,7 +3177,8 @@ if (map && typeof ResizeObserver !== "undefined"){
   function activate(tab, opts){
     opts = opts || {};
     buttons.forEach(b => b.setAttribute("aria-selected", b.dataset.tab === tab ? "true" : "false"));
-    if (moreBtn) moreBtn.classList.toggle("on", extra.some(d => d.id === tab));
+    if (moreBtn) moreBtn.classList.toggle("on", extra.some(d => d.id === tab) ||
+      (!!flex && flex.id === tab && document.documentElement.classList.contains("ts-large")));
     openMore(false);
     panels.forEach(p => p.classList.toggle("active", p.dataset.tab === tab));
     if (tab === "map" && map){
@@ -3192,7 +3203,7 @@ if (map && typeof ResizeObserver !== "undefined"){
   // open last time, and nothing has been tapped since, go back to it.
   document.addEventListener("gallery-ready", () => {
     const b = $("tabbtn-photos"); if (!b) return;
-    b.hidden = false;
+    document.querySelectorAll('.tab-btn[data-tab="photos"]').forEach(x => x.hidden = false);
     if (saved === "photos" && !chosen) activate("photos", { skipSave:true });
   });
 })();
